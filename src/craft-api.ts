@@ -75,6 +75,58 @@ export async function listCollections(apiUrl: string, apiKey: string): Promise<C
   }
 }
 
+export type InsertBlockResult =
+  | { ok: true; data: string }
+  | { ok: false; error: string }
+
+export async function insertBlock(
+  apiUrl: string,
+  apiKey: string,
+  params: { markdown: string; textStyle: string; color: string; afterBlockId: string },
+): Promise<InsertBlockResult> {
+  try {
+    const res = await fetch(`${apiUrl}/blocks`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        blocks: [{ type: "text", markdown: params.markdown, textStyle: params.textStyle, color: params.color }],
+        position: { position: "after", siblingId: params.afterBlockId },
+      }),
+    })
+    if (res.ok) {
+      const json = (await res.json()) as { items: Array<{ id: string }> }
+      return { ok: true, data: json.items[0].id }
+    }
+    return { ok: false, error: "Failed to insert block" }
+  } catch {
+    return { ok: false, error: "Network error — check your connection" }
+  }
+}
+
+export type UpdateBlockResult =
+  | { ok: true }
+  | { ok: false; error: string }
+
+export async function updateBlock(
+  apiUrl: string,
+  apiKey: string,
+  params: { blockId: string; markdown: string; color: string },
+): Promise<UpdateBlockResult> {
+  try {
+    const res = await fetch(`${apiUrl}/blocks`, {
+      method: "PUT",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        blocks: [{ id: params.blockId, markdown: params.markdown, color: params.color }],
+      }),
+    })
+    if (res.ok) return { ok: true }
+    return { ok: false, error: "Failed to update block" }
+  } catch {
+    return { ok: false, error: "Network error — check your connection" }
+  }
+}
+
 export async function validateConnection(apiUrl: string, apiKey: string): Promise<ConnectionResult> {
   try {
     const res = await fetch(`${apiUrl}/connection`, {

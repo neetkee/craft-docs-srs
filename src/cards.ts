@@ -1,4 +1,4 @@
-import { listCollections, fetchCollectionItems, type CollectionItem } from "./craft-api"
+import { listCollections, fetchCollectionItems, type CollectionItem, type ContentBlock } from "./craft-api"
 
 export interface SrsMetadata {
   state: string
@@ -14,6 +14,11 @@ export interface Card {
   metadataBlockId: string | null
   question: string
   metadata: SrsMetadata | null
+}
+
+export interface ReviewCard extends Card {
+  answerBlocks: ContentBlock[]
+  itemId: string
 }
 
 export interface DeckInfo {
@@ -81,6 +86,41 @@ export function countCards(cards: Card[]): { newCount: number; dueCount: number;
     }
   }
   return { newCount, dueCount, totalCount: cards.length }
+}
+
+export function parseReviewCards(items: CollectionItem[]): ReviewCard[] {
+  const cards: ReviewCard[] = []
+  for (const item of items) {
+    const blocks = item.content
+    for (let i = 0; i < blocks.length; i++) {
+      const block = blocks[i]
+      if (!HEADING_STYLES.has(block.textStyle)) continue
+      const question = block.markdown.replace(/^#+\s*/, "")
+      let metadata: SrsMetadata | null = null
+      let metadataBlockId: string | null = null
+      let answerStart = i + 1
+      const next = blocks[i + 1]
+      if (next && next.textStyle === "caption") {
+        metadata = parseSrsMetadata(next.markdown)
+        if (metadata) {
+          metadataBlockId = next.id
+          answerStart = i + 2
+        }
+      }
+      const answerBlocks: ContentBlock[] = []
+      for (let j = answerStart; j < blocks.length; j++) {
+        if (HEADING_STYLES.has(blocks[j].textStyle)) break
+        answerBlocks.push(blocks[j])
+      }
+      cards.push({ headingBlockId: block.id, metadataBlockId, question, metadata, answerBlocks, itemId: item.id })
+    }
+  }
+  return cards
+}
+
+export function filterDueCards(cards: ReviewCard[]): ReviewCard[] {
+  const now = Math.floor(Date.now() / 1000)
+  return cards.filter((c) => c.metadata === null || c.metadata.due <= now)
 }
 
 export async function loadDecks(apiUrl: string, apiKey: string, collectionIds: string[]): Promise<DecksResult> {

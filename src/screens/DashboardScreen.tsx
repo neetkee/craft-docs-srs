@@ -17,9 +17,10 @@ function formatDate(date: Date): string {
 interface DashboardScreenProps {
   onAddDeck: () => void
   onDeleteDeck: (collectionId: string) => void
+  onReview: (collectionId: string) => void
 }
 
-export function DashboardScreen({ onAddDeck, onDeleteDeck }: DashboardScreenProps) {
+export function DashboardScreen({ onAddDeck, onDeleteDeck, onReview }: DashboardScreenProps) {
   const renderer = useRenderer()
   const [decks, setDecks] = useState<DeckInfo[]>([])
   const [loading, setLoading] = useState(true)
@@ -49,6 +50,11 @@ export function DashboardScreen({ onAddDeck, onDeleteDeck }: DashboardScreenProp
     }
     if (key.sequence === "a") {
       onAddDeck()
+      return
+    }
+    if (key.sequence === "r" && decks.length > 0) {
+      const deck = decks[selectedIndex]
+      if (deck) onReview(deck.id)
       return
     }
     if (key.sequence === "d" && decks.length > 0) {

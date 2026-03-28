@@ -3,12 +3,14 @@ import { loadConfig, isConfigComplete, saveConfig } from "./config"
 import { SetupScreen } from "./screens/SetupScreen"
 import { DashboardScreen } from "./screens/DashboardScreen"
 import { AddDeckScreen } from "./screens/AddDeckScreen"
+import { ReviewScreen } from "./screens/ReviewScreen"
 
 export function App() {
-  const [screen, setScreen] = useState<"setup" | "dashboard" | "addDeck">(() =>
+  const [screen, setScreen] = useState<"setup" | "dashboard" | "addDeck" | "review">(() =>
     isConfigComplete(loadConfig()) ? "dashboard" : "setup"
   )
   const [refreshKey, setRefreshKey] = useState(0)
+  const [reviewCollectionId, setReviewCollectionId] = useState("")
 
   if (screen === "setup") {
     return <SetupScreen onComplete={() => setScreen("dashboard")} />
@@ -33,6 +35,18 @@ export function App() {
     )
   }
 
+  if (screen === "review") {
+    return (
+      <ReviewScreen
+        collectionId={reviewCollectionId}
+        onDone={() => {
+          setRefreshKey((k) => k + 1)
+          setScreen("dashboard")
+        }}
+      />
+    )
+  }
+
   return (
     <DashboardScreen
       key={refreshKey}
@@ -44,6 +58,10 @@ export function App() {
           collectionIds: current.collectionIds.filter((id) => id !== collectionId),
         })
         setRefreshKey((k) => k + 1)
+      }}
+      onReview={(collectionId) => {
+        setReviewCollectionId(collectionId)
+        setScreen("review")
       }}
     />
   )
