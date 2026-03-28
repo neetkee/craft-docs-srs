@@ -1,6 +1,6 @@
 import { homedir } from "node:os"
 import { join, dirname } from "node:path"
-import { mkdirSync } from "node:fs"
+import { mkdirSync, readFileSync, existsSync } from "node:fs"
 
 export interface Config {
   craftApiUrl: string
@@ -12,9 +12,8 @@ export const CONFIG_PATH = join(homedir(), ".config", "craft-docs-srs", "config.
 
 export function loadConfig(): Config | null {
   try {
-    const file = Bun.file(CONFIG_PATH)
-    const text = file.size ? file.textSync() : null
-    if (!text) return null
+    if (!existsSync(CONFIG_PATH)) return null
+    const text = readFileSync(CONFIG_PATH, "utf-8")
     return JSON.parse(text) as Config
   } catch {
     return null
