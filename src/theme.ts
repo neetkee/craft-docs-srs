@@ -13,4 +13,5 @@ export const colors = {
   mauve: "#cba6f7",
   teal: "#94e2d5",
   peach: "#fab387",
+  caption: "#999999",
 } as const

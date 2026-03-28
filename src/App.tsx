@@ -1,5 +1,6 @@
 import { useState } from "react"
 import { loadConfig, isConfigComplete, saveConfig } from "./config"
+import { createCraftClient } from "./craft-api"
 import { SetupScreen } from "./screens/SetupScreen"
 import { DashboardScreen } from "./screens/DashboardScreen"
 import { AddDeckScreen } from "./screens/AddDeckScreen"
@@ -16,13 +17,22 @@ export function App() {
     return <SetupScreen onComplete={() => setScreen("dashboard")} />
   }
 
+  const config = loadConfig()
+  if (!config) {
+    setScreen("setup")
+    return null
+  }
+
+  const client = createCraftClient(config.craftApiUrl, config.craftApiKey)
+
   if (screen === "addDeck") {
-    const config = loadConfig()!
     return (
       <AddDeckScreen
+        client={client}
         addedIds={config.collectionIds}
         onSelect={async (collectionId) => {
-          const current = loadConfig()!
+          const current = loadConfig()
+          if (!current) { setScreen("setup"); return }
           await saveConfig({
             ...current,
             collectionIds: [...current.collectionIds, collectionId],
@@ -38,6 +48,7 @@ export function App() {
   if (screen === "review") {
     return (
       <ReviewScreen
+        client={client}
         collectionId={reviewCollectionId}
         onDone={() => {
           setRefreshKey((k) => k + 1)
@@ -50,9 +61,11 @@ export function App() {
   return (
     <DashboardScreen
       key={refreshKey}
+      client={client}
       onAddDeck={() => setScreen("addDeck")}
       onDeleteDeck={async (collectionId) => {
-        const current = loadConfig()!
+        const current = loadConfig()
+        if (!current) { setScreen("setup"); return }
         await saveConfig({
           ...current,
           collectionIds: current.collectionIds.filter((id) => id !== collectionId),

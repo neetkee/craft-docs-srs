@@ -3,25 +3,23 @@ import { useKeyboard } from "@opentui/react"
 import { colors } from "../theme"
 import { Header } from "../components/Header"
 import { HotkeyBar } from "../components/HotkeyBar"
-import { loadConfig } from "../config"
-import { listCollections, type Collection } from "../craft-api"
+import type { CraftClient, Collection } from "../craft-api"
 
 interface AddDeckScreenProps {
+  client: CraftClient
   onSelect: (collectionId: string) => void
   onCancel: () => void
   addedIds: string[]
 }
 
-export function AddDeckScreen({ onSelect, onCancel, addedIds }: AddDeckScreenProps) {
+export function AddDeckScreen({ client, onSelect, onCancel, addedIds }: AddDeckScreenProps) {
   const [collections, setCollections] = useState<Collection[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selectedIndex, setSelectedIndex] = useState(0)
 
   useEffect(() => {
-    const config = loadConfig()
-    if (!config) return
-    listCollections(config.craftApiUrl, config.craftApiKey).then((result) => {
+    client.listCollections().then((result) => {
       if (result.ok) {
         setCollections(result.data)
       } else {

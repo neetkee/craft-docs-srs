@@ -1,5 +1,5 @@
 import { fsrs, createEmptyCard, Rating, State, type Card as FsrsCard, type CardInput } from "ts-fsrs"
-import type { SrsMetadata } from "./cards"
+import type { SrsMetadata, SrsState } from "./cards"
 
 export { Rating }
 
@@ -12,7 +12,7 @@ const STATE_MAP: Record<string, State> = {
   RELEARNING: State.Relearning,
 }
 
-const STATE_NAMES: Record<number, string> = {
+const STATE_NAMES: Record<number, SrsState> = {
   [State.New]: "NEW",
   [State.Learning]: "LEARNING",
   [State.Review]: "REVIEW",
@@ -28,10 +28,10 @@ export function toFsrsCard(metadata: SrsMetadata | null, now: Date): CardInput |
     due: new Date(metadata.due * 1000),
     last_review: new Date(metadata.lastReview * 1000),
     learning_steps: metadata.step,
-    reps: 0,
-    lapses: 0,
-    elapsed_days: 0,
-    scheduled_days: 0,
+    reps: metadata.reps,
+    lapses: metadata.lapses,
+    elapsed_days: Math.max(0, Math.floor((now.getTime() / 1000 - metadata.lastReview) / 86400)),
+    scheduled_days: metadata.scheduledDays,
   }
 }
 
@@ -46,6 +46,9 @@ export function rateCard(metadata: SrsMetadata | null, rating: Rating, now: Date
     difficulty: updated.difficulty,
     due: Math.floor(updated.due.getTime() / 1000),
     lastReview: Math.floor((updated.last_review?.getTime() ?? now.getTime()) / 1000),
+    reps: updated.reps,
+    lapses: updated.lapses,
+    scheduledDays: updated.scheduled_days,
   }
 }
 
@@ -54,5 +57,5 @@ function formatNum(n: number): string {
 }
 
 export function serializeMetadata(metadata: SrsMetadata): string {
-  return `srs: ${metadata.state}|${metadata.step}|${formatNum(metadata.stability)}|${formatNum(metadata.difficulty)}|${metadata.due}|${metadata.lastReview}`
+  return `srs: ${metadata.state}|${metadata.step}|${formatNum(metadata.stability)}|${formatNum(metadata.difficulty)}|${metadata.due}|${metadata.lastReview}|${metadata.reps}|${metadata.lapses}|${metadata.scheduledDays}`
 }

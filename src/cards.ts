@@ -1,12 +1,17 @@
-import { listCollections, fetchCollectionItems, type CollectionItem, type ContentBlock } from "./craft-api"
+import type { CraftClient, CollectionItem, ContentBlock, Result } from "./craft-api"
+
+export type SrsState = "NEW" | "LEARNING" | "REVIEW" | "RELEARNING"
 
 export interface SrsMetadata {
-  state: string
+  state: SrsState
   step: number
   stability: number
   difficulty: number
   due: number
   lastReview: number
+  reps: number
+  lapses: number
+  scheduledDays: number
 }
 
 export interface Card {
@@ -29,9 +34,7 @@ export interface DeckInfo {
   totalCount: number
 }
 
-export type DecksResult =
-  | { ok: true; data: DeckInfo[] }
-  | { ok: false; error: string }
+const VALID_STATES = new Set<string>(["NEW", "LEARNING", "REVIEW", "RELEARNING"])
 
 export function parseSrsMetadata(markdown: string): SrsMetadata | null {
   let text = markdown.trim()
@@ -40,55 +43,25 @@ export function parseSrsMetadata(markdown: string): SrsMetadata | null {
   }
   if (!text.startsWith("srs: ")) return null
   const fields = text.slice("srs: ".length).split("|")
-  if (fields.length !== 6) return null
+  if (fields.length !== 9) return null
   const state = fields[0]
+  if (!VALID_STATES.has(state)) return null
   const step = parseInt(fields[1], 10)
   const stability = parseFloat(fields[2])
   const difficulty = parseFloat(fields[3])
   const due = parseInt(fields[4], 10)
   const lastReview = parseInt(fields[5], 10)
-  if ([step, stability, difficulty, due, lastReview].some((v) => isNaN(v))) return null
-  return { state, step, stability, difficulty, due, lastReview }
+  const reps = parseInt(fields[6], 10)
+  const lapses = parseInt(fields[7], 10)
+  const scheduledDays = parseInt(fields[8], 10)
+  if ([step, stability, difficulty, due, lastReview, reps, lapses, scheduledDays].some((v) => isNaN(v))) return null
+
+  return { state: state as SrsState, step, stability, difficulty, due, lastReview, reps, lapses, scheduledDays }
 }
 
 const HEADING_STYLES = new Set(["h1", "h2", "h3", "h4"])
 
-export function parseCards(items: CollectionItem[]): Card[] {
-  const cards: Card[] = []
-  for (const item of items) {
-    const blocks = item.content
-    for (let i = 0; i < blocks.length; i++) {
-      const block = blocks[i]
-      if (!HEADING_STYLES.has(block.textStyle)) continue
-      const question = block.markdown.replace(/^#+\s*/, "")
-      let metadata: SrsMetadata | null = null
-      let metadataBlockId: string | null = null
-      const next = blocks[i + 1]
-      if (next && next.textStyle === "caption") {
-        metadata = parseSrsMetadata(next.markdown)
-        if (metadata) metadataBlockId = next.id
-      }
-      cards.push({ headingBlockId: block.id, metadataBlockId, question, metadata })
-    }
-  }
-  return cards
-}
-
-export function countCards(cards: Card[]): { newCount: number; dueCount: number; totalCount: number } {
-  const now = Math.floor(Date.now() / 1000)
-  let newCount = 0
-  let dueCount = 0
-  for (const card of cards) {
-    if (card.metadata === null) {
-      newCount++
-    } else if (card.metadata.due <= now) {
-      dueCount++
-    }
-  }
-  return { newCount, dueCount, totalCount: cards.length }
-}
-
-export function parseReviewCards(items: CollectionItem[]): ReviewCard[] {
+function parseItemCards(items: CollectionItem[]): ReviewCard[] {
   const cards: ReviewCard[] = []
   for (const item of items) {
     const blocks = item.content
@@ -118,22 +91,44 @@ export function parseReviewCards(items: CollectionItem[]): ReviewCard[] {
   return cards
 }
 
+export function parseCards(items: CollectionItem[]): Card[] {
+  return parseItemCards(items)
+}
+
+export function parseReviewCards(items: CollectionItem[]): ReviewCard[] {
+  return parseItemCards(items)
+}
+
+export function countCards(cards: Card[]): { newCount: number; dueCount: number; totalCount: number } {
+  const now = Math.floor(Date.now() / 1000)
+  let newCount = 0
+  let dueCount = 0
+  for (const card of cards) {
+    if (card.metadata === null) {
+      newCount++
+    } else if (card.metadata.due <= now) {
+      dueCount++
+    }
+  }
+  return { newCount, dueCount, totalCount: cards.length }
+}
+
 export function filterDueCards(cards: ReviewCard[]): ReviewCard[] {
   const now = Math.floor(Date.now() / 1000)
   return cards.filter((c) => c.metadata === null || c.metadata.due <= now)
 }
 
-export async function loadDecks(apiUrl: string, apiKey: string, collectionIds: string[]): Promise<DecksResult> {
+export async function loadDecks(client: CraftClient, collectionIds: string[]): Promise<Result<DeckInfo[]>> {
   if (collectionIds.length === 0) return { ok: true, data: [] }
 
-  const collectionsResult = await listCollections(apiUrl, apiKey)
+  const collectionsResult = await client.listCollections()
   if (!collectionsResult.ok) return collectionsResult
 
   const matching = collectionsResult.data.filter((c) => collectionIds.includes(c.id))
 
   const results = await Promise.all(
     matching.map(async (collection) => {
-      const itemsResult = await fetchCollectionItems(apiUrl, apiKey, collection.id)
+      const itemsResult = await client.fetchCollectionItems(collection.id)
       if (!itemsResult.ok) return { ok: false as const, error: itemsResult.error }
       const cards = parseCards(itemsResult.data)
       const counts = countCards(cards)
@@ -145,5 +140,5 @@ export async function loadDecks(apiUrl: string, apiKey: string, collectionIds: s
     if (!r.ok) return r
   }
 
-  return { ok: true, data: results.map((r) => (r as { ok: true; data: DeckInfo }).data) }
+  return { ok: true, data: results.filter((r): r is { ok: true; data: DeckInfo } => r.ok).map((r) => r.data) }
 }

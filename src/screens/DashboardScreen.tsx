@@ -4,6 +4,7 @@ import { colors } from "../theme"
 import { Header } from "../components/Header"
 import { HotkeyBar } from "../components/HotkeyBar"
 import { loadConfig } from "../config"
+import type { CraftClient } from "../craft-api"
 import { loadDecks, type DeckInfo } from "../cards"
 
 function formatDate(date: Date): string {
@@ -15,12 +16,13 @@ function formatDate(date: Date): string {
 }
 
 interface DashboardScreenProps {
+  client: CraftClient
   onAddDeck: () => void
   onDeleteDeck: (collectionId: string) => void
   onReview: (collectionId: string) => void
 }
 
-export function DashboardScreen({ onAddDeck, onDeleteDeck, onReview }: DashboardScreenProps) {
+export function DashboardScreen({ client, onAddDeck, onDeleteDeck, onReview }: DashboardScreenProps) {
   const renderer = useRenderer()
   const [decks, setDecks] = useState<DeckInfo[]>([])
   const [loading, setLoading] = useState(true)
@@ -33,7 +35,7 @@ export function DashboardScreen({ onAddDeck, onDeleteDeck, onReview }: Dashboard
       setLoading(false)
       return
     }
-    loadDecks(config.craftApiUrl, config.craftApiKey, config.collectionIds).then((result) => {
+    loadDecks(client, config.collectionIds).then((result) => {
       if (result.ok) {
         setDecks(result.data)
       } else {

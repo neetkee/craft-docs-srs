@@ -1,17 +1,17 @@
-import { useEffect, useState, useMemo } from "react"
+import { useEffect, useState } from "react"
 import { useKeyboard } from "@opentui/react"
 import { SyntaxStyle, RGBA, getTreeSitterClient } from "@opentui/core"
 import { colors } from "../theme"
 import { Header } from "../components/Header"
 import { HotkeyBar } from "../components/HotkeyBar"
-import { loadConfig } from "../config"
-import { fetchCollectionItems, insertBlock, updateBlock } from "../craft-api"
+import type { CraftClient } from "../craft-api"
 import { parseReviewCards, filterDueCards, type ReviewCard } from "../cards"
 import { rateCard, serializeMetadata, Rating } from "../srs"
 
 type Phase = "loading" | "question" | "answer" | "saving" | "complete" | "empty" | "error"
 
 interface ReviewScreenProps {
+  client: CraftClient
   collectionId: string
   onDone: () => void
 }
@@ -36,7 +36,7 @@ const syntaxStyle = SyntaxStyle.fromStyles({
   "markup.strikethrough": { dim: true },
 })
 
-export function ReviewScreen({ collectionId, onDone }: ReviewScreenProps) {
+export function ReviewScreen({ client, collectionId, onDone }: ReviewScreenProps) {
   const [phase, setPhase] = useState<Phase>("loading")
   const [cards, setCards] = useState<ReviewCard[]>([])
   const [currentIndex, setCurrentIndex] = useState(0)
@@ -44,13 +44,7 @@ export function ReviewScreen({ collectionId, onDone }: ReviewScreenProps) {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    const config = loadConfig()
-    if (!config) {
-      setError("Config not found")
-      setPhase("error")
-      return
-    }
-    fetchCollectionItems(config.craftApiUrl, config.craftApiKey, collectionId).then((result) => {
+    client.fetchCollectionItems(collectionId).then((result) => {
       if (!result.ok) {
         setError(result.error)
         setPhase("error")
@@ -68,32 +62,35 @@ export function ReviewScreen({ collectionId, onDone }: ReviewScreenProps) {
 
   const card = cards[currentIndex] ?? null
 
-  const answerMarkdown = useMemo(() => {
-    if (!card) return ""
-    return card.answerBlocks.map((b) => b.markdown).join("\n\n")
-  }, [card])
+  const answerBlocks = card?.answerBlocks ?? []
 
   async function handleRate(rating: Rating) {
     if (!card) return
     setPhase("saving")
-    const config = loadConfig()!
     const now = new Date()
     const newMetadata = rateCard(card.metadata, rating, now)
     const serialized = serializeMetadata(newMetadata)
 
+    let saveResult
     if (card.metadataBlockId) {
-      await updateBlock(config.craftApiUrl, config.craftApiKey, {
+      saveResult = await client.updateBlock({
         blockId: card.metadataBlockId,
         markdown: `<caption>${serialized}</caption>`,
-        color: "#999999",
+        color: colors.caption,
       })
     } else {
-      await insertBlock(config.craftApiUrl, config.craftApiKey, {
+      saveResult = await client.insertBlock({
         markdown: serialized,
         textStyle: "caption",
-        color: "#999999",
+        color: colors.caption,
         afterBlockId: card.headingBlockId,
       })
+    }
+
+    if (!saveResult.ok) {
+      setError(saveResult.error)
+      setPhase("error")
+      return
     }
 
     const next = currentIndex + 1
@@ -166,7 +163,15 @@ export function ReviewScreen({ collectionId, onDone }: ReviewScreenProps) {
             <box height={1} overflow="hidden">
               <text fg={colors.overlay}>{"─".repeat(200)}</text>
             </box>
-            <markdown content={answerMarkdown} syntaxStyle={syntaxStyle} treeSitterClient={treeSitterClient} fg={colors.text} />
+            {answerBlocks.map((block) =>
+              block.type === "code" ? (
+                <box key={block.id} backgroundColor={colors.surface} paddingLeft={1} paddingRight={1} paddingTop={1} paddingBottom={1}>
+                  <markdown content={block.markdown} syntaxStyle={syntaxStyle} treeSitterClient={treeSitterClient} fg={colors.text} />
+                </box>
+              ) : (
+                <markdown key={block.id} content={block.markdown} syntaxStyle={syntaxStyle} treeSitterClient={treeSitterClient} fg={colors.text} />
+              ),
+            )}
           </box>
         )}
 
