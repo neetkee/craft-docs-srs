@@ -1,0 +1,32 @@
+import { homedir } from "node:os"
+import { join, dirname } from "node:path"
+import { mkdirSync } from "node:fs"
+
+export interface Config {
+  craftApiUrl: string
+  craftApiKey: string
+  collectionIds: string[]
+}
+
+export const CONFIG_PATH = join(homedir(), ".config", "craft-docs-srs", "config.json")
+
+export function loadConfig(): Config | null {
+  try {
+    const file = Bun.file(CONFIG_PATH)
+    const text = file.size ? file.textSync() : null
+    if (!text) return null
+    return JSON.parse(text) as Config
+  } catch {
+    return null
+  }
+}
+
+export function isConfigComplete(config: Config | null): boolean {
+  if (!config) return false
+  return config.craftApiUrl.trim().length > 0 && config.craftApiKey.trim().length > 0
+}
+
+export async function saveConfig(config: Config): Promise<void> {
+  mkdirSync(dirname(CONFIG_PATH), { recursive: true })
+  await Bun.write(CONFIG_PATH, JSON.stringify(config, null, 2))
+}
