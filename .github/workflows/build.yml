@@ -18,6 +18,8 @@ jobs:
 
       - run: bun build --compile --target bun-darwin-arm64 src/index.tsx --outfile craft-docs-srs
 
+      - run: codesign --sign - --force craft-docs-srs
+
       - uses: actions/upload-artifact@v4
         with:
           name: craft-docs-srs-darwin-arm64
