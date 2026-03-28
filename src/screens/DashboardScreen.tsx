@@ -25,7 +25,11 @@ function formatDate(date: Date): string {
   })
 }
 
-export function DashboardScreen() {
+interface DashboardScreenProps {
+  onAddDeck: () => void
+}
+
+export function DashboardScreen({ onAddDeck }: DashboardScreenProps) {
   const renderer = useRenderer()
   const decks = MOCK_DECKS
   const [selectedIndex, setSelectedIndex] = useState(0)
@@ -33,6 +37,10 @@ export function DashboardScreen() {
   useKeyboard((key) => {
     if (key.name === "q") {
       renderer.destroy()
+      return
+    }
+    if (key.sequence === "a") {
+      onAddDeck()
       return
     }
     if (decks.length === 0) return
