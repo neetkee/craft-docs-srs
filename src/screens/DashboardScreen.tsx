@@ -1,21 +1,10 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useKeyboard, useRenderer } from "@opentui/react"
 import { colors } from "../theme"
 import { Header } from "../components/Header"
 import { HotkeyBar } from "../components/HotkeyBar"
-
-interface Deck {
-  name: string
-  newCount: number
-  dueCount: number
-  totalCount: number
-}
-
-const MOCK_DECKS: Deck[] = [
-  { name: "DSA Basics", newCount: 3, dueCount: 1, totalCount: 12 },
-  { name: "System Design", newCount: 5, dueCount: 2, totalCount: 8 },
-  { name: "TypeScript Advanced", newCount: 0, dueCount: 0, totalCount: 4 },
-]
+import { loadConfig } from "../config"
+import { loadDecks, type DeckInfo } from "../cards"
 
 function formatDate(date: Date): string {
   return date.toLocaleDateString("en-US", {
@@ -27,12 +16,31 @@ function formatDate(date: Date): string {
 
 interface DashboardScreenProps {
   onAddDeck: () => void
+  onDeleteDeck: (collectionId: string) => void
 }
 
-export function DashboardScreen({ onAddDeck }: DashboardScreenProps) {
+export function DashboardScreen({ onAddDeck, onDeleteDeck }: DashboardScreenProps) {
   const renderer = useRenderer()
-  const decks = MOCK_DECKS
+  const [decks, setDecks] = useState<DeckInfo[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [selectedIndex, setSelectedIndex] = useState(0)
+
+  useEffect(() => {
+    const config = loadConfig()
+    if (!config || config.collectionIds.length === 0) {
+      setLoading(false)
+      return
+    }
+    loadDecks(config.craftApiUrl, config.craftApiKey, config.collectionIds).then((result) => {
+      if (result.ok) {
+        setDecks(result.data)
+      } else {
+        setError(result.error)
+      }
+      setLoading(false)
+    })
+  }, [])
 
   useKeyboard((key) => {
     if (key.name === "q") {
@@ -41,6 +49,11 @@ export function DashboardScreen({ onAddDeck }: DashboardScreenProps) {
     }
     if (key.sequence === "a") {
       onAddDeck()
+      return
+    }
+    if (key.sequence === "d" && decks.length > 0) {
+      const deck = decks[selectedIndex]
+      if (deck) onDeleteDeck(deck.id)
       return
     }
     if (decks.length === 0) return
@@ -62,7 +75,11 @@ export function DashboardScreen({ onAddDeck }: DashboardScreenProps) {
           <strong><span fg={colors.title}>craft-docs-srs</span></strong>
         </Header>
 
-        {decks.length === 0 ? (
+        {loading ? (
+          <text fg={colors.dim}>Loading decks...</text>
+        ) : error ? (
+          <text fg={colors.err}>{error}</text>
+        ) : decks.length === 0 ? (
           <box justifyContent="center" alignItems="center" flexDirection="column" gap={1}>
             <text fg={colors.dim}>No decks yet</text>
             <text>
@@ -88,7 +105,7 @@ export function DashboardScreen({ onAddDeck }: DashboardScreenProps) {
                 const selected = i === selectedIndex
                 return (
                   <box
-                    key={i}
+                    key={deck.id}
                     flexDirection="row"
                     justifyContent="space-between"
                     backgroundColor={selected ? colors.surface : undefined}

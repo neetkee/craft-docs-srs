@@ -8,6 +8,7 @@ export function App() {
   const [screen, setScreen] = useState<"setup" | "dashboard" | "addDeck">(() =>
     isConfigComplete(loadConfig()) ? "dashboard" : "setup"
   )
+  const [refreshKey, setRefreshKey] = useState(0)
 
   if (screen === "setup") {
     return <SetupScreen onComplete={() => setScreen("dashboard")} />
@@ -24,6 +25,7 @@ export function App() {
             ...current,
             collectionIds: [...current.collectionIds, collectionId],
           })
+          setRefreshKey((k) => k + 1)
           setScreen("dashboard")
         }}
         onCancel={() => setScreen("dashboard")}
@@ -31,5 +33,18 @@ export function App() {
     )
   }
 
-  return <DashboardScreen onAddDeck={() => setScreen("addDeck")} />
+  return (
+    <DashboardScreen
+      key={refreshKey}
+      onAddDeck={() => setScreen("addDeck")}
+      onDeleteDeck={async (collectionId) => {
+        const current = loadConfig()!
+        await saveConfig({
+          ...current,
+          collectionIds: current.collectionIds.filter((id) => id !== collectionId),
+        })
+        setRefreshKey((k) => k + 1)
+      }}
+    />
+  )
 }
