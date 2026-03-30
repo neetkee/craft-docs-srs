@@ -153,12 +153,14 @@ export function ReviewScreen({ client, collectionId, onDone }: ReviewScreenProps
 
         {phase === "question" && card && (
           <box flexDirection="column" gap={1}>
+            <text fg={colors.dim}>{card.documentName}</text>
             <markdown content={`## ${card.question}`} syntaxStyle={syntaxStyle} treeSitterClient={treeSitterClient} fg={colors.text} />
           </box>
         )}
 
         {(phase === "answer" || phase === "saving") && card && (
           <box flexDirection="column" gap={1}>
+            <text fg={colors.dim}>{card.documentName}</text>
             <markdown content={`## ${card.question}`} syntaxStyle={syntaxStyle} treeSitterClient={treeSitterClient} fg={colors.text} />
             <box height={1} overflow="hidden">
               <text fg={colors.overlay}>{"─".repeat(200)}</text>

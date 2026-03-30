@@ -357,9 +357,9 @@ describe("filterDueCards", () => {
   it("includes new cards and due cards, excludes future cards", () => {
     const now = Math.floor(Date.now() / 1000)
     const cards: ReviewCard[] = [
-      { headingBlockId: "1", metadataBlockId: null, question: "New", metadata: null, answerBlocks: [], itemId: "i1" },
-      { headingBlockId: "2", metadataBlockId: "m2", question: "Due", metadata: makeMetadata({ due: now - 100 }), answerBlocks: [], itemId: "i2" },
-      { headingBlockId: "3", metadataBlockId: "m3", question: "Future", metadata: makeMetadata({ due: now + 100000 }), answerBlocks: [], itemId: "i3" },
+      { headingBlockId: "1", metadataBlockId: null, question: "New", metadata: null, answerBlocks: [], itemId: "i1", documentName: "Doc1" },
+      { headingBlockId: "2", metadataBlockId: "m2", question: "Due", metadata: makeMetadata({ due: now - 100 }), answerBlocks: [], itemId: "i2", documentName: "Doc2" },
+      { headingBlockId: "3", metadataBlockId: "m3", question: "Future", metadata: makeMetadata({ due: now + 100000 }), answerBlocks: [], itemId: "i3", documentName: "Doc3" },
     ]
     const due = filterDueCards(cards)
     expect(due).toHaveLength(2)
@@ -426,6 +426,7 @@ describe("time-dependent behavior", () => {
       metadata: makeMetadata({ due }),
       answerBlocks: [],
       itemId: "i1",
+      documentName: "Doc",
     })
     expect(filterDueCards([makeReviewCard(1000)])).toHaveLength(1) // far past → due
     expect(filterDueCards([makeReviewCard(4102444800)])).toHaveLength(0) // far future → not due

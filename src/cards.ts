@@ -24,6 +24,7 @@ export interface Card {
 export interface ReviewCard extends Card {
   answerBlocks: ContentBlock[]
   itemId: string
+  documentName: string
 }
 
 export interface DeckInfo {
@@ -85,7 +86,7 @@ function parseItemCards(items: CollectionItem[]): ReviewCard[] {
         if (HEADING_STYLES.has(blocks[j].textStyle)) break
         answerBlocks.push(blocks[j])
       }
-      cards.push({ headingBlockId: block.id, metadataBlockId, question, metadata, answerBlocks, itemId: item.id })
+      cards.push({ headingBlockId: block.id, metadataBlockId, question, metadata, answerBlocks, itemId: item.id, documentName: item.title })
     }
   }
   return cards
