@@ -196,7 +196,7 @@ describe("createCraftClient.insertBlock", () => {
 // ---------------------------------------------------------------------------
 
 describe("createCraftClient.updateBlock", () => {
-  const params = { blockId: "b1", markdown: "updated content", color: "#ddd" }
+  const params = { blockId: "b1", markdown: "updated content", textStyle: "caption", color: "#ddd" }
 
   it("returns ok on success", async () => {
     mockFetch({ ok: true, json: () => Promise.resolve({}) })
@@ -209,7 +209,7 @@ describe("createCraftClient.updateBlock", () => {
       method: "PUT",
       headers: { Authorization: `Bearer ${API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        blocks: [{ id: params.blockId, markdown: params.markdown, color: params.color }],
+        blocks: [{ id: params.blockId, markdown: params.markdown, textStyle: params.textStyle, color: params.color }],
       }),
     })
   })

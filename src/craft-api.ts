@@ -52,7 +52,7 @@ export interface CraftClient {
   listCollections(): Promise<Result<Collection[]>>
   fetchCollectionItems(collectionId: string): Promise<Result<CollectionItem[]>>
   insertBlock(params: { markdown: string; textStyle: string; color: string; afterBlockId: string }): Promise<Result<string>>
-  updateBlock(params: { blockId: string; markdown: string; color: string }): Promise<Result>
+  updateBlock(params: { blockId: string; markdown: string; textStyle: string; color: string }): Promise<Result>
 }
 
 export function createCraftClient(apiUrl: string, apiKey: string): CraftClient {
@@ -113,7 +113,7 @@ export function createCraftClient(apiUrl: string, apiKey: string): CraftClient {
           method: "PUT",
           headers: jsonHeaders,
           body: JSON.stringify({
-            blocks: [{ id: params.blockId, markdown: params.markdown, color: params.color }],
+            blocks: [{ id: params.blockId, markdown: params.markdown, textStyle: params.textStyle, color: params.color }],
           }),
         })
         if (res.ok) return { ok: true, data: undefined }

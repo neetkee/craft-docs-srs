@@ -75,7 +75,8 @@ export function ReviewScreen({ client, collectionId, onDone }: ReviewScreenProps
     if (card.metadataBlockId) {
       saveResult = await client.updateBlock({
         blockId: card.metadataBlockId,
-        markdown: `<caption>${serialized}</caption>`,
+        markdown: serialized,
+        textStyle: "caption",
         color: colors.caption,
       })
     } else {
