@@ -80,6 +80,16 @@ export function ReviewScreen({ client, collectionId, onDone }: ReviewScreenProps
 
   const card = cards[currentIndex] ?? null
 
+  function handleSkip() {
+    const next = currentIndex + 1
+    if (next >= cards.length) {
+      setPhase("complete")
+    } else {
+      setCurrentIndex(next)
+      setPhase("front")
+    }
+  }
+
   async function handleRate(rating: Rating) {
     if (!card) return
     setPhase("saving")
@@ -114,6 +124,7 @@ export function ReviewScreen({ client, collectionId, onDone }: ReviewScreenProps
     }
     if (phase === "front") {
       if (key.name === "space") setPhase("back")
+      if (key.sequence === "s") handleSkip()
       if (key.name === "escape") onDone()
       return
     }
@@ -122,6 +133,7 @@ export function ReviewScreen({ client, collectionId, onDone }: ReviewScreenProps
       else if (key.sequence === "2") handleRate(Rating.Good)
       else if (key.sequence === "3") handleRate(Rating.Hard)
       else if (key.sequence === "4") handleRate(Rating.Again)
+      else if (key.sequence === "s") handleSkip()
       else if (key.name === "escape") onDone()
       return
     }
@@ -185,13 +197,14 @@ export function ReviewScreen({ client, collectionId, onDone }: ReviewScreenProps
         {phase !== "loading" && (
           <HotkeyBar hints={
             phase === "front"
-              ? [{ key: "space", action: "reveal" }, { key: "esc", action: "quit" }]
+              ? [{ key: "space", action: "reveal" }, { key: "s", action: "skip" }, { key: "esc", action: "quit" }]
               : phase === "back"
               ? [
                   { key: "1", action: "easy" },
                   { key: "2", action: "good" },
                   { key: "3", action: "hard" },
                   { key: "4", action: "again" },
+                  { key: "s", action: "skip" },
                   { key: "esc", action: "quit" },
                 ]
               : phase === "saving"
