@@ -1,5 +1,5 @@
 import { describe, it, expect } from "bun:test"
-import { parseCards, parseReviewCards, loadDecks } from "./cards"
+import { parseCards, loadDecks } from "./cards"
 import type { CraftClient, CollectionItem, ContentBlock, Collection } from "./craft-api"
 
 // ---------------------------------------------------------------------------
@@ -16,16 +16,17 @@ function makeBlock(overrides: Partial<ContentBlock> & { id?: string } = {}): Con
   }
 }
 
-function makeItem(blocks: ContentBlock[], id = "item-1"): CollectionItem {
-  return { id, title: "Test Item", properties: {}, content: blocks }
+function makeItem(blocks: ContentBlock[], id = "item-1", srs?: string): CollectionItem {
+  return { id, title: "Test Item", properties: srs ? { srs } : {}, content: blocks }
 }
 
 function makeMockClient(overrides: Partial<CraftClient> = {}): CraftClient {
   return {
     listCollections: () => Promise.resolve({ ok: true as const, data: [] }),
     fetchCollectionItems: () => Promise.resolve({ ok: true as const, data: [] }),
-    insertBlock: () => Promise.resolve({ ok: true as const, data: "new-id" }),
-    updateBlock: () => Promise.resolve({ ok: true as const, data: undefined }),
+    fetchCollectionSchema: () => Promise.resolve({ ok: true as const, data: { key: "k", name: "N", contentPropDetails: { key: "title", name: "Title" }, properties: [] } }),
+    updateCollectionSchema: () => Promise.resolve({ ok: true as const, data: undefined }),
+    updateCollectionItem: () => Promise.resolve({ ok: true as const, data: undefined }),
     ...overrides,
   }
 }
@@ -35,37 +36,51 @@ function makeMockClient(overrides: Partial<CraftClient> = {}): CraftClient {
 // ---------------------------------------------------------------------------
 
 describe("parseCards edge cases", () => {
-  it("item with no blocks → no cards", () => {
-    const cards = parseCards([makeItem([])])
-    expect(cards).toHaveLength(0)
+  it("item with no blocks → card with empty front and back", () => {
+    const cards = parseCards("col-1", [makeItem([])])
+    expect(cards).toHaveLength(1)
+    expect(cards[0].frontBlocks).toHaveLength(0)
+    expect(cards[0].backBlocks).toHaveLength(0)
   })
 
-  it("item with only body blocks (no headings) → no cards", () => {
+  it("item with only body blocks (no separator) → all blocks are front", () => {
     const blocks = [
       makeBlock({ id: "b1", textStyle: "body", markdown: "Just text" }),
       makeBlock({ id: "b2", textStyle: "body", markdown: "More text" }),
     ]
-    const cards = parseCards([makeItem(blocks)])
-    expect(cards).toHaveLength(0)
+    const cards = parseCards("col-1", [makeItem(blocks)])
+    expect(cards).toHaveLength(1)
+    expect(cards[0].frontBlocks).toHaveLength(2)
+    expect(cards[0].backBlocks).toHaveLength(0)
   })
 
-  it("consecutive headings with no answer blocks between them", () => {
+  it("separator at start → empty front, all blocks as back", () => {
     const blocks = [
-      makeBlock({ id: "h1", textStyle: "h1", markdown: "# Q1" }),
-      makeBlock({ id: "h2", textStyle: "h2", markdown: "## Q2" }),
-      makeBlock({ id: "h3", textStyle: "h3", markdown: "### Q3" }),
+      makeBlock({ id: "hr", type: "line", markdown: "*****" }),
+      makeBlock({ id: "b1", textStyle: "body", markdown: "Back content" }),
     ]
-    const cards = parseReviewCards([makeItem(blocks)])
-    expect(cards).toHaveLength(3)
-    expect(cards[0].answerBlocks).toHaveLength(0)
-    expect(cards[1].answerBlocks).toHaveLength(0)
-    expect(cards[2].answerBlocks).toHaveLength(0)
+    const cards = parseCards("col-1", [makeItem(blocks)])
+    expect(cards[0].frontBlocks).toHaveLength(0)
+    expect(cards[0].backBlocks).toHaveLength(1)
+  })
+
+  it("only first separator splits front and back, subsequent separators are part of back", () => {
+    const blocks = [
+      makeBlock({ id: "f1", textStyle: "body", markdown: "Front" }),
+      makeBlock({ id: "hr1", type: "line", markdown: "*****" }),
+      makeBlock({ id: "b1", textStyle: "body", markdown: "Back part 1" }),
+      makeBlock({ id: "hr2", type: "line", markdown: "*****" }),
+      makeBlock({ id: "b2", textStyle: "body", markdown: "Back part 2" }),
+    ]
+    const cards = parseCards("col-1", [makeItem(blocks)])
+    expect(cards[0].frontBlocks).toHaveLength(1)
+    expect(cards[0].backBlocks).toHaveLength(3)
   })
 
   it("multiple items produce cards from all items", () => {
-    const item1 = makeItem([makeBlock({ id: "h1", textStyle: "h1", markdown: "# Q1" })], "item-1")
-    const item2 = makeItem([makeBlock({ id: "h2", textStyle: "h2", markdown: "## Q2" })], "item-2")
-    const cards = parseReviewCards([item1, item2])
+    const item1 = makeItem([makeBlock({ id: "b1", textStyle: "body", markdown: "Front 1" })], "item-1")
+    const item2 = makeItem([makeBlock({ id: "b2", textStyle: "body", markdown: "Front 2" })], "item-2")
+    const cards = parseCards("col-1", [item1, item2])
     expect(cards).toHaveLength(2)
     expect(cards[0].itemId).toBe("item-1")
     expect(cards[1].itemId).toBe("item-2")
@@ -115,20 +130,25 @@ describe("loadDecks", () => {
       { id: "c2", name: "Deck 2", itemCount: 1, documentId: "d2" },
     ]
     const now = Math.floor(Date.now() / 1000)
-    const item1: CollectionItem = makeItem([
-      makeBlock({ id: "h1", textStyle: "h1", markdown: "# Q1" }),
-      makeBlock({ id: "h2", textStyle: "h2", markdown: "## Q2" }),
-      makeBlock({ id: "cap", textStyle: "caption", markdown: `srs: REVIEW|0|5.5|4.2|${now - 100}|${now - 1000}|10|2|8` }),
-    ], "i1")
-    const item2: CollectionItem = makeItem([
-      makeBlock({ id: "h3", textStyle: "h1", markdown: "# Q3" }),
-    ], "i2")
+    const item1: CollectionItem = makeItem(
+      [makeBlock({ id: "f1", textStyle: "body", markdown: "Front" })],
+      "i1",
+      `REVIEW|0|5.5|4.2|${now - 100}|${now - 1000}|10|2|8`,
+    )
+    const item2: CollectionItem = makeItem(
+      [makeBlock({ id: "f2", textStyle: "body", markdown: "Front 2" })],
+      "i2",
+    )
+    const item3: CollectionItem = makeItem(
+      [makeBlock({ id: "f3", textStyle: "body", markdown: "Front 3" })],
+      "i3",
+    )
 
     const client = makeMockClient({
       listCollections: () => Promise.resolve({ ok: true as const, data: collections }),
       fetchCollectionItems: (id) => {
-        if (id === "c1") return Promise.resolve({ ok: true as const, data: [item1] })
-        if (id === "c2") return Promise.resolve({ ok: true as const, data: [item2] })
+        if (id === "c1") return Promise.resolve({ ok: true as const, data: [item1, item2] })
+        if (id === "c2") return Promise.resolve({ ok: true as const, data: [item3] })
         return Promise.resolve({ ok: true as const, data: [] })
       },
     })
@@ -138,9 +158,9 @@ describe("loadDecks", () => {
     if (!result.ok) return
 
     expect(result.data).toHaveLength(2)
-    // Deck 1: Q1 (new, no metadata) + Q2 (due, has metadata with past due date)
+    // Deck 1: item1 (due, has metadata with past due date) + item2 (new, no metadata)
     expect(result.data[0]).toEqual({ id: "c1", name: "Deck 1", newCount: 1, dueCount: 1, totalCount: 2 })
-    // Deck 2: Q3 (new)
+    // Deck 2: item3 (new)
     expect(result.data[1]).toEqual({ id: "c2", name: "Deck 2", newCount: 1, dueCount: 0, totalCount: 1 })
   })
 

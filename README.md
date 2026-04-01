@@ -4,7 +4,7 @@ A terminal flashcard app that uses [Craft Docs](https://www.craft.do/) collectio
 
 ## How it works
 
-Each Craft collection becomes a deck. Inside a collection item, every heading (h1–h4) defines a flashcard — the heading is the question, and everything below it until the next heading is the answer. Review metadata is saved as caption blocks in the document itself.
+Each Craft collection becomes a deck. Each item in the collection is one flashcard. A line separator (horizontal rule) splits the item content into front and back — everything before the separator is the front of the card, everything after is the back. The back can be empty. The item title is shown during review. When you add a collection as a deck, the app automatically adds an SRS text property to the collection schema if it doesn't exist. Review metadata is stored in that property.
 
 ## Requirements
 

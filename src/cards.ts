@@ -15,16 +15,12 @@ export interface SrsMetadata {
 }
 
 export interface Card {
-  headingBlockId: string
-  metadataBlockId: string | null
-  question: string
-  metadata: SrsMetadata | null
-}
-
-export interface ReviewCard extends Card {
-  answerBlocks: ContentBlock[]
   itemId: string
+  frontBlocks: ContentBlock[]
+  backBlocks: ContentBlock[]
+  metadata: SrsMetadata | null
   documentName: string
+  collectionId: string
 }
 
 export interface DeckInfo {
@@ -37,13 +33,10 @@ export interface DeckInfo {
 
 const VALID_STATES = new Set<string>(["NEW", "LEARNING", "REVIEW", "RELEARNING"])
 
-export function parseSrsMetadata(markdown: string): SrsMetadata | null {
-  let text = markdown.trim()
-  if (text.startsWith("<caption>") && text.endsWith("</caption>")) {
-    text = text.slice("<caption>".length, -"</caption>".length).trim()
-  }
-  if (!text.startsWith("srs: ")) return null
-  const fields = text.slice("srs: ".length).split("|")
+export function parseSrsMetadata(text: string): SrsMetadata | null {
+  const trimmed = text.trim()
+  if (!trimmed) return null
+  const fields = trimmed.split("|")
   if (fields.length !== 9) return null
   const state = fields[0]
   if (!VALID_STATES.has(state)) return null
@@ -60,44 +53,21 @@ export function parseSrsMetadata(markdown: string): SrsMetadata | null {
   return { state: state as SrsState, step, stability, difficulty, due, lastReview, reps, lapses, scheduledDays }
 }
 
-const HEADING_STYLES = new Set(["h1", "h2", "h3", "h4"])
+function isSeparator(block: ContentBlock): boolean {
+  return block.type === "line"
+}
 
-function parseItemCards(items: CollectionItem[]): ReviewCard[] {
-  const cards: ReviewCard[] = []
+export function parseCards(collectionId: string, items: CollectionItem[]): Card[] {
+  const cards: Card[] = []
   for (const item of items) {
     const blocks = item.content
-    for (let i = 0; i < blocks.length; i++) {
-      const block = blocks[i]
-      if (!HEADING_STYLES.has(block.textStyle)) continue
-      const question = block.markdown.replace(/^#+\s*/, "")
-      let metadata: SrsMetadata | null = null
-      let metadataBlockId: string | null = null
-      let answerStart = i + 1
-      const next = blocks[i + 1]
-      if (next && next.textStyle === "caption") {
-        metadata = parseSrsMetadata(next.markdown)
-        if (metadata) {
-          metadataBlockId = next.id
-          answerStart = i + 2
-        }
-      }
-      const answerBlocks: ContentBlock[] = []
-      for (let j = answerStart; j < blocks.length; j++) {
-        if (HEADING_STYLES.has(blocks[j].textStyle)) break
-        answerBlocks.push(blocks[j])
-      }
-      cards.push({ headingBlockId: block.id, metadataBlockId, question, metadata, answerBlocks, itemId: item.id, documentName: item.title })
-    }
+    const separatorIndex = blocks.findIndex(isSeparator)
+    const frontBlocks = separatorIndex === -1 ? blocks : blocks.slice(0, separatorIndex)
+    const backBlocks = separatorIndex === -1 ? [] : blocks.slice(separatorIndex + 1)
+    const metadata = item.properties.srs ? parseSrsMetadata(item.properties.srs) : null
+    cards.push({ itemId: item.id, frontBlocks, backBlocks, metadata, documentName: item.title, collectionId })
   }
   return cards
-}
-
-export function parseCards(items: CollectionItem[]): Card[] {
-  return parseItemCards(items)
-}
-
-export function parseReviewCards(items: CollectionItem[]): ReviewCard[] {
-  return parseItemCards(items)
 }
 
 export function countCards(cards: Card[]): { newCount: number; dueCount: number; totalCount: number } {
@@ -114,7 +84,7 @@ export function countCards(cards: Card[]): { newCount: number; dueCount: number;
   return { newCount, dueCount, totalCount: cards.length }
 }
 
-export function filterDueCards(cards: ReviewCard[]): ReviewCard[] {
+export function filterDueCards(cards: Card[]): Card[] {
   const now = Math.floor(Date.now() / 1000)
   return cards.filter((c) => c.metadata === null || c.metadata.due <= now)
 }
@@ -131,7 +101,7 @@ export async function loadDecks(client: CraftClient, collectionIds: string[]): P
     matching.map(async (collection) => {
       const itemsResult = await client.fetchCollectionItems(collection.id)
       if (!itemsResult.ok) return { ok: false as const, error: itemsResult.error }
-      const cards = parseCards(itemsResult.data)
+      const cards = parseCards(collection.id, itemsResult.data)
       const counts = countCards(cards)
       return { ok: true as const, data: { id: collection.id, name: collection.name, ...counts } }
     }),

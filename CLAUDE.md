@@ -12,7 +12,7 @@ No build step — Bun runs TypeScript directly.
 
 ## Architecture
 
-TUI spaced-repetition app that turns Craft Docs collections into flashcard decks. No external database — all SRS state is stored inline in Craft documents as caption blocks.
+TUI spaced-repetition app that turns Craft Docs collections into flashcard decks. No external database — all SRS state is stored in a collection text property.
 
 ### Screen routing
 
@@ -25,18 +25,18 @@ config.ts (apiUrl, apiKey, collectionIds from ~/.config/craft-docs-srs/config.js
     ↓
 craft-api.ts (CraftClient object created via createCraftClient(apiUrl, apiKey))
     ↓
-cards.ts (parse collection items → Card/ReviewCard by detecting heading blocks)
+cards.ts (parse collection items → Card by splitting at line separator)
     ↓
 srs.ts (ts-fsrs wrapper: rate cards, serialize/deserialize metadata)
     ↓
-CraftClient (persist metadata back as caption blocks via insertBlock/updateBlock)
+CraftClient (persist metadata via updateCollectionItem)
 ```
 
 App.tsx creates a `CraftClient` from config and passes it to screens as a prop. Screens never read config for API credentials directly.
 
 ### Card model
 
-Each heading block (h1–h4) in a collection item starts a new card. An optional caption block immediately after the heading holds SRS metadata (`srs: STATE|step|stability|difficulty|due|lastReview|reps|lapses|scheduledDays`). All blocks until the next heading are the answer.
+Each collection item is one card. A line separator block (`type: "line"`) splits the content into front and back — blocks before the separator are the front, blocks after are the back. The back can be empty. The item title is shown as the document name during review. SRS metadata is stored in the collection's `SRS` text property (`STATE|step|stability|difficulty|due|lastReview|reps|lapses|scheduledDays`). When a collection is added as a deck, the app ensures the SRS property exists in the schema.
 
 ## Conventions
 
@@ -44,4 +44,4 @@ Each heading block (h1–h4) in a collection item starts a new card. An optional
 - **Colors**: Import from `theme.ts` (Catppuccin Mocha palette). Never hardcode hex values in screens/components.
 - **Screen pattern**: Each screen follows the same structure — `useEffect` for data loading, `useKeyboard` for input, layout with `Header` + content + `HotkeyBar` in a centered 80-col `<box>`.
 - **Markdown rendering**: Use OpenTUI's `<markdown>` component with `syntaxStyle` and `treeSitterClient` from `@opentui/core` for formatted text and syntax-highlighted code.
-- **Metadata persistence**: Existing cards use `PUT /blocks` with `<caption>...</caption>` wrapping. New cards use `POST /blocks` with `textStyle: "caption"`, `color: colors.caption`.
+- **Metadata persistence**: SRS metadata is saved via `PUT /collections/{id}/items` into the `srs` property. When adding a deck, the schema is checked/updated to include an SRS text property.

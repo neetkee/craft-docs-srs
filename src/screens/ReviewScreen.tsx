@@ -5,10 +5,10 @@ import { colors } from "../theme"
 import { Header } from "../components/Header"
 import { HotkeyBar } from "../components/HotkeyBar"
 import type { CraftClient } from "../craft-api"
-import { parseReviewCards, filterDueCards, type ReviewCard } from "../cards"
+import { parseCards, filterDueCards, type Card } from "../cards"
 import { rateCard, serializeMetadata, Rating } from "../srs"
 
-type Phase = "loading" | "question" | "answer" | "saving" | "complete" | "empty" | "error"
+type Phase = "loading" | "front" | "back" | "saving" | "complete" | "empty" | "error"
 
 interface ReviewScreenProps {
   client: CraftClient
@@ -36,9 +36,22 @@ const syntaxStyle = SyntaxStyle.fromStyles({
   "markup.strikethrough": { dim: true },
 })
 
+function renderBlock(block: { id: string; type: string; markdown: string }) {
+  if (block.type === "code") {
+    return (
+      <box key={block.id} backgroundColor={colors.surface} paddingLeft={1} paddingRight={1} paddingTop={1} paddingBottom={1}>
+        <markdown content={block.markdown} syntaxStyle={syntaxStyle} treeSitterClient={treeSitterClient} fg={colors.text} />
+      </box>
+    )
+  }
+  return (
+    <markdown key={block.id} content={block.markdown} syntaxStyle={syntaxStyle} treeSitterClient={treeSitterClient} fg={colors.text} />
+  )
+}
+
 export function ReviewScreen({ client, collectionId, onDone }: ReviewScreenProps) {
   const [phase, setPhase] = useState<Phase>("loading")
-  const [cards, setCards] = useState<ReviewCard[]>([])
+  const [cards, setCards] = useState<Card[]>([])
   const [currentIndex, setCurrentIndex] = useState(0)
   const [reviewed, setReviewed] = useState(0)
   const [error, setError] = useState<string | null>(null)
@@ -50,19 +63,17 @@ export function ReviewScreen({ client, collectionId, onDone }: ReviewScreenProps
         setPhase("error")
         return
       }
-      const due = filterDueCards(parseReviewCards(result.data))
+      const due = filterDueCards(parseCards(collectionId, result.data))
       if (due.length === 0) {
         setPhase("empty")
         return
       }
       setCards(due)
-      setPhase("question")
+      setPhase("front")
     })
   }, [])
 
   const card = cards[currentIndex] ?? null
-
-  const answerBlocks = card?.answerBlocks ?? []
 
   async function handleRate(rating: Rating) {
     if (!card) return
@@ -71,22 +82,7 @@ export function ReviewScreen({ client, collectionId, onDone }: ReviewScreenProps
     const newMetadata = rateCard(card.metadata, rating, now)
     const serialized = serializeMetadata(newMetadata)
 
-    let saveResult
-    if (card.metadataBlockId) {
-      saveResult = await client.updateBlock({
-        blockId: card.metadataBlockId,
-        markdown: serialized,
-        textStyle: "caption",
-        color: colors.caption,
-      })
-    } else {
-      saveResult = await client.insertBlock({
-        markdown: serialized,
-        textStyle: "caption",
-        color: colors.caption,
-        afterBlockId: card.headingBlockId,
-      })
-    }
+    const saveResult = await client.updateCollectionItem(collectionId, card.itemId, { srs: serialized })
 
     if (!saveResult.ok) {
       setError(saveResult.error)
@@ -100,7 +96,7 @@ export function ReviewScreen({ client, collectionId, onDone }: ReviewScreenProps
       setPhase("complete")
     } else {
       setCurrentIndex(next)
-      setPhase("question")
+      setPhase("front")
     }
   }
 
@@ -111,12 +107,12 @@ export function ReviewScreen({ client, collectionId, onDone }: ReviewScreenProps
       }
       return
     }
-    if (phase === "question") {
-      if (key.name === "space") setPhase("answer")
+    if (phase === "front") {
+      if (key.name === "space") setPhase("back")
       if (key.name === "escape") onDone()
       return
     }
-    if (phase === "answer") {
+    if (phase === "back") {
       if (key.sequence === "1") handleRate(Rating.Easy)
       else if (key.sequence === "2") handleRate(Rating.Good)
       else if (key.sequence === "3") handleRate(Rating.Hard)
@@ -152,28 +148,24 @@ export function ReviewScreen({ client, collectionId, onDone }: ReviewScreenProps
           </box>
         )}
 
-        {phase === "question" && card && (
+        {phase === "front" && card && (
           <box flexDirection="column" gap={1}>
             <text fg={colors.dim}>{card.documentName}</text>
-            <markdown content={`## ${card.question}`} syntaxStyle={syntaxStyle} treeSitterClient={treeSitterClient} fg={colors.text} />
+            {card.frontBlocks.map(renderBlock)}
           </box>
         )}
 
-        {(phase === "answer" || phase === "saving") && card && (
+        {(phase === "back" || phase === "saving") && card && (
           <box flexDirection="column" gap={1}>
             <text fg={colors.dim}>{card.documentName}</text>
-            <markdown content={`## ${card.question}`} syntaxStyle={syntaxStyle} treeSitterClient={treeSitterClient} fg={colors.text} />
-            <box height={1} overflow="hidden">
-              <text fg={colors.overlay}>{"─".repeat(200)}</text>
-            </box>
-            {answerBlocks.map((block) =>
-              block.type === "code" ? (
-                <box key={block.id} backgroundColor={colors.surface} paddingLeft={1} paddingRight={1} paddingTop={1} paddingBottom={1}>
-                  <markdown content={block.markdown} syntaxStyle={syntaxStyle} treeSitterClient={treeSitterClient} fg={colors.text} />
+            {card.frontBlocks.map(renderBlock)}
+            {card.backBlocks.length > 0 && (
+              <>
+                <box height={1} overflow="hidden">
+                  <text fg={colors.overlay}>{"─".repeat(200)}</text>
                 </box>
-              ) : (
-                <markdown key={block.id} content={block.markdown} syntaxStyle={syntaxStyle} treeSitterClient={treeSitterClient} fg={colors.text} />
-              ),
+                {card.backBlocks.map(renderBlock)}
+              </>
             )}
           </box>
         )}
@@ -186,9 +178,9 @@ export function ReviewScreen({ client, collectionId, onDone }: ReviewScreenProps
         )}
 
         <HotkeyBar hints={
-          phase === "question"
+          phase === "front"
             ? [{ key: "space", action: "reveal" }, { key: "esc", action: "quit" }]
-            : phase === "answer"
+            : phase === "back"
             ? [
                 { key: "1", action: "easy" },
                 { key: "2", action: "good" },

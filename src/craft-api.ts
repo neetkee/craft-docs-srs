@@ -48,11 +48,26 @@ export async function validateConnection(apiUrl: string, apiKey: string): Promis
   }
 }
 
+export interface CollectionSchemaProperty {
+  key: string
+  name: string
+  type: string
+  options?: { name: string; color?: string }[]
+}
+
+export interface CollectionSchema {
+  key: string
+  name: string
+  contentPropDetails: { key: string; name: string }
+  properties: CollectionSchemaProperty[]
+}
+
 export interface CraftClient {
   listCollections(): Promise<Result<Collection[]>>
   fetchCollectionItems(collectionId: string): Promise<Result<CollectionItem[]>>
-  insertBlock(params: { markdown: string; textStyle: string; color: string; afterBlockId: string }): Promise<Result<string>>
-  updateBlock(params: { blockId: string; markdown: string; textStyle: string; color: string }): Promise<Result>
+  fetchCollectionSchema(collectionId: string): Promise<Result<CollectionSchema>>
+  updateCollectionSchema(collectionId: string, schema: CollectionSchema): Promise<Result>
+  updateCollectionItem(collectionId: string, itemId: string, properties: Record<string, string>): Promise<Result>
 }
 
 export function createCraftClient(apiUrl: string, apiKey: string): CraftClient {
@@ -86,38 +101,42 @@ export function createCraftClient(apiUrl: string, apiKey: string): CraftClient {
       }
     },
 
-    async insertBlock(params) {
+    async fetchCollectionSchema(collectionId) {
       try {
-        const res = await fetch(`${apiUrl}/blocks`, {
-          method: "POST",
-          headers: jsonHeaders,
-          body: JSON.stringify({
-            blocks: [{ type: "text", markdown: params.markdown, textStyle: params.textStyle, color: params.color }],
-            position: { position: "after", siblingId: params.afterBlockId },
-          }),
-        })
+        const res = await fetch(`${apiUrl}/collections/${collectionId}/schema?format=schema`, { headers })
         if (res.ok) {
-          const json = (await res.json()) as { items: Array<{ id: string }> }
-          if (!json.items[0]) return { ok: false, error: "API returned empty response" }
-          return { ok: true, data: json.items[0].id }
+          const json = (await res.json()) as CollectionSchema
+          return { ok: true, data: json }
         }
-        return { ok: false, error: "Failed to insert block" }
+        return { ok: false, error: "Failed to fetch collection schema" }
       } catch {
         return { ok: false, error: "Network error — check your connection" }
       }
     },
 
-    async updateBlock(params) {
+    async updateCollectionSchema(collectionId, schema) {
       try {
-        const res = await fetch(`${apiUrl}/blocks`, {
+        const res = await fetch(`${apiUrl}/collections/${collectionId}/schema`, {
           method: "PUT",
           headers: jsonHeaders,
-          body: JSON.stringify({
-            blocks: [{ id: params.blockId, markdown: params.markdown, textStyle: params.textStyle, color: params.color }],
-          }),
+          body: JSON.stringify({ schema }),
         })
         if (res.ok) return { ok: true, data: undefined }
-        return { ok: false, error: "Failed to update block" }
+        return { ok: false, error: "Failed to update collection schema" }
+      } catch {
+        return { ok: false, error: "Network error — check your connection" }
+      }
+    },
+
+    async updateCollectionItem(collectionId, itemId, properties) {
+      try {
+        const res = await fetch(`${apiUrl}/collections/${collectionId}/items`, {
+          method: "PUT",
+          headers: jsonHeaders,
+          body: JSON.stringify({ itemsToUpdate: [{ id: itemId, properties }] }),
+        })
+        if (res.ok) return { ok: true, data: undefined }
+        return { ok: false, error: "Failed to update collection item" }
       } catch {
         return { ok: false, error: "Network error — check your connection" }
       }

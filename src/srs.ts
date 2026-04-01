@@ -57,5 +57,5 @@ function formatNum(n: number): string {
 }
 
 export function serializeMetadata(metadata: SrsMetadata): string {
-  return `srs: ${metadata.state}|${metadata.step}|${formatNum(metadata.stability)}|${formatNum(metadata.difficulty)}|${metadata.due}|${metadata.lastReview}|${metadata.reps}|${metadata.lapses}|${metadata.scheduledDays}`
+  return `${metadata.state}|${metadata.step}|${formatNum(metadata.stability)}|${formatNum(metadata.difficulty)}|${metadata.due}|${metadata.lastReview}|${metadata.reps}|${metadata.lapses}|${metadata.scheduledDays}`
 }

@@ -137,54 +137,38 @@ describe("createCraftClient.fetchCollectionItems", () => {
 })
 
 // ---------------------------------------------------------------------------
-// createCraftClient — insertBlock
+// createCraftClient — fetchCollectionSchema
 // ---------------------------------------------------------------------------
 
-describe("createCraftClient.insertBlock", () => {
-  const params = { markdown: "test content", textStyle: "caption", color: "#ccc", afterBlockId: "b1" }
-
-  it("returns new block id on success", async () => {
-    mockFetch({ ok: true, json: () => Promise.resolve({ items: [{ id: "new-block-1" }] }) })
+describe("createCraftClient.fetchCollectionSchema", () => {
+  it("returns schema on success", async () => {
+    const schema = { key: "tasks", name: "Tasks", contentPropDetails: { key: "title", name: "Title" }, properties: [] }
+    mockFetch({ ok: true, json: () => Promise.resolve(schema) })
 
     const client = createCraftClient(API_URL, API_KEY)
-    const result = await client.insertBlock(params)
+    const result = await client.fetchCollectionSchema("c1")
 
-    expect(result).toEqual({ ok: true, data: "new-block-1" })
-    expect(fetchSpy).toHaveBeenCalledWith(`${API_URL}/blocks`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${API_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        blocks: [{ type: "text", markdown: params.markdown, textStyle: params.textStyle, color: params.color }],
-        position: { position: "after", siblingId: params.afterBlockId },
-      }),
+    expect(result).toEqual({ ok: true, data: schema })
+    expect(fetchSpy).toHaveBeenCalledWith(`${API_URL}/collections/c1/schema?format=schema`, {
+      headers: { Authorization: `Bearer ${API_KEY}` },
     })
-  })
-
-  it("returns error when API returns empty items", async () => {
-    mockFetch({ ok: true, json: () => Promise.resolve({ items: [] }) })
-
-    const client = createCraftClient(API_URL, API_KEY)
-    const result = await client.insertBlock(params)
-
-    expect(result.ok).toBe(false)
-    if (!result.ok) expect(result.error).toContain("empty response")
   })
 
   it("returns error on HTTP failure", async () => {
     mockFetch({ ok: false, status: 500 })
 
     const client = createCraftClient(API_URL, API_KEY)
-    const result = await client.insertBlock(params)
+    const result = await client.fetchCollectionSchema("c1")
 
     expect(result.ok).toBe(false)
-    if (!result.ok) expect(result.error).toContain("Failed to insert block")
+    if (!result.ok) expect(result.error).toContain("Failed to fetch collection schema")
   })
 
   it("returns error on network failure", async () => {
     mockFetchError(new Error("offline"))
 
     const client = createCraftClient(API_URL, API_KEY)
-    const result = await client.insertBlock(params)
+    const result = await client.fetchCollectionSchema("c1")
 
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.error).toContain("Network error")
@@ -192,25 +176,23 @@ describe("createCraftClient.insertBlock", () => {
 })
 
 // ---------------------------------------------------------------------------
-// createCraftClient — updateBlock
+// createCraftClient — updateCollectionSchema
 // ---------------------------------------------------------------------------
 
-describe("createCraftClient.updateBlock", () => {
-  const params = { blockId: "b1", markdown: "updated content", textStyle: "caption", color: "#ddd" }
+describe("createCraftClient.updateCollectionSchema", () => {
+  const schema = { key: "tasks", name: "Tasks", contentPropDetails: { key: "title", name: "Title" }, properties: [{ key: "srs", name: "SRS", type: "text" }] }
 
   it("returns ok on success", async () => {
     mockFetch({ ok: true, json: () => Promise.resolve({}) })
 
     const client = createCraftClient(API_URL, API_KEY)
-    const result = await client.updateBlock(params)
+    const result = await client.updateCollectionSchema("c1", schema)
 
     expect(result).toEqual({ ok: true, data: undefined })
-    expect(fetchSpy).toHaveBeenCalledWith(`${API_URL}/blocks`, {
+    expect(fetchSpy).toHaveBeenCalledWith(`${API_URL}/collections/c1/schema`, {
       method: "PUT",
       headers: { Authorization: `Bearer ${API_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        blocks: [{ id: params.blockId, markdown: params.markdown, textStyle: params.textStyle, color: params.color }],
-      }),
+      body: JSON.stringify({ schema }),
     })
   })
 
@@ -218,17 +200,57 @@ describe("createCraftClient.updateBlock", () => {
     mockFetch({ ok: false, status: 500 })
 
     const client = createCraftClient(API_URL, API_KEY)
-    const result = await client.updateBlock(params)
+    const result = await client.updateCollectionSchema("c1", schema)
 
     expect(result.ok).toBe(false)
-    if (!result.ok) expect(result.error).toContain("Failed to update block")
+    if (!result.ok) expect(result.error).toContain("Failed to update collection schema")
   })
 
   it("returns error on network failure", async () => {
     mockFetchError(new Error("offline"))
 
     const client = createCraftClient(API_URL, API_KEY)
-    const result = await client.updateBlock(params)
+    const result = await client.updateCollectionSchema("c1", schema)
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error).toContain("Network error")
+  })
+})
+
+// ---------------------------------------------------------------------------
+// createCraftClient — updateCollectionItem
+// ---------------------------------------------------------------------------
+
+describe("createCraftClient.updateCollectionItem", () => {
+  it("returns ok on success", async () => {
+    mockFetch({ ok: true, json: () => Promise.resolve({}) })
+
+    const client = createCraftClient(API_URL, API_KEY)
+    const result = await client.updateCollectionItem("c1", "item-1", { srs: "REVIEW|0|5|4|100|100|1|0|1" })
+
+    expect(result).toEqual({ ok: true, data: undefined })
+    expect(fetchSpy).toHaveBeenCalledWith(`${API_URL}/collections/c1/items`, {
+      method: "PUT",
+      headers: { Authorization: `Bearer ${API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ itemsToUpdate: [{ id: "item-1", properties: { srs: "REVIEW|0|5|4|100|100|1|0|1" } }] }),
+    })
+  })
+
+  it("returns error on HTTP failure", async () => {
+    mockFetch({ ok: false, status: 500 })
+
+    const client = createCraftClient(API_URL, API_KEY)
+    const result = await client.updateCollectionItem("c1", "item-1", { srs: "test" })
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error).toContain("Failed to update collection item")
+  })
+
+  it("returns error on network failure", async () => {
+    mockFetchError(new Error("offline"))
+
+    const client = createCraftClient(API_URL, API_KEY)
+    const result = await client.updateCollectionItem("c1", "item-1", { srs: "test" })
 
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.error).toContain("Network error")

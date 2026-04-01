@@ -1,7 +1,7 @@
 import { describe, it, expect } from "bun:test"
 import { Rating } from "ts-fsrs"
-import { parseSrsMetadata, parseCards, parseReviewCards, countCards, filterDueCards } from "./cards"
-import type { SrsMetadata, Card, ReviewCard } from "./cards"
+import { parseSrsMetadata, parseCards, countCards, filterDueCards } from "./cards"
+import type { SrsMetadata, Card } from "./cards"
 import type { CollectionItem, ContentBlock } from "./craft-api"
 import { serializeMetadata, toFsrsCard, rateCard } from "./srs"
 
@@ -43,8 +43,8 @@ function makeBlock(overrides: Partial<ContentBlock> & { id?: string } = {}): Con
   }
 }
 
-function makeItem(blocks: ContentBlock[], id = "item-1"): CollectionItem {
-  return { id, title: "Test Item", properties: {}, content: blocks }
+function makeItem(blocks: ContentBlock[], id = "item-1", srs?: string): CollectionItem {
+  return { id, title: "Test Item", properties: srs ? { srs } : {}, content: blocks }
 }
 
 // ---------------------------------------------------------------------------
@@ -53,7 +53,7 @@ function makeItem(blocks: ContentBlock[], id = "item-1"): CollectionItem {
 
 describe("parseSrsMetadata", () => {
   it("parses a valid metadata string with all 9 fields", () => {
-    const input = "srs: REVIEW|0|5.5|4.2|1711822800|1711136400|10|2|8"
+    const input = "REVIEW|0|5.5|4.2|1711822800|1711136400|10|2|8"
     const result = parseSrsMetadata(input)
     expect(result).toEqual({
       state: "REVIEW",
@@ -68,38 +68,29 @@ describe("parseSrsMetadata", () => {
     })
   })
 
-  it("parses with <caption> wrapper", () => {
-    const input = "<caption>srs: LEARNING|3|1.2|6.0|1711822800|1711136400|5|1|3</caption>"
-    const result = parseSrsMetadata(input)
-    expect(result).not.toBeNull()
-    expect(result!.state).toBe("LEARNING")
-    expect(result!.step).toBe(3)
-  })
-
   it("returns null for invalid state", () => {
-    expect(parseSrsMetadata("srs: INVALID|0|5.5|4.2|100|100|1|0|1")).toBeNull()
+    expect(parseSrsMetadata("INVALID|0|5.5|4.2|100|100|1|0|1")).toBeNull()
   })
 
   it("returns null for too few fields", () => {
-    expect(parseSrsMetadata("srs: REVIEW|0|5.5|4.2|100|100|1|0")).toBeNull()
+    expect(parseSrsMetadata("REVIEW|0|5.5|4.2|100|100|1|0")).toBeNull()
   })
 
   it("returns null for too many fields", () => {
-    expect(parseSrsMetadata("srs: REVIEW|0|5.5|4.2|100|100|1|0|1|extra")).toBeNull()
+    expect(parseSrsMetadata("REVIEW|0|5.5|4.2|100|100|1|0|1|extra")).toBeNull()
   })
 
   it("returns null for non-numeric fields", () => {
-    expect(parseSrsMetadata("srs: REVIEW|abc|5.5|4.2|100|100|1|0|1")).toBeNull()
+    expect(parseSrsMetadata("REVIEW|abc|5.5|4.2|100|100|1|0|1")).toBeNull()
   })
 
-  it("returns null for strings not starting with srs:", () => {
-    expect(parseSrsMetadata("not srs data")).toBeNull()
+  it("returns null for empty string", () => {
     expect(parseSrsMetadata("")).toBeNull()
   })
 
   it("parses all four valid states", () => {
     for (const state of ["NEW", "LEARNING", "REVIEW", "RELEARNING"] as const) {
-      const result = parseSrsMetadata(`srs: ${state}|0|1.0|1.0|100|100|0|0|0`)
+      const result = parseSrsMetadata(`${state}|0|1.0|1.0|100|100|0|0|0`)
       expect(result).not.toBeNull()
       expect(result!.state).toBe(state)
     }
@@ -114,7 +105,7 @@ describe("serializeMetadata", () => {
   it("produces correct pipe-delimited string", () => {
     const meta = makeMetadata()
     const result = serializeMetadata(meta)
-    expect(result).toBe("srs: REVIEW|0|5.5|4.2|1711822800|1711136400|10|2|8")
+    expect(result).toBe("REVIEW|0|5.5|4.2|1711822800|1711136400|10|2|8")
   })
 
   it("strips trailing zeros from floats", () => {
@@ -248,85 +239,76 @@ describe("rateCard", () => {
 })
 
 // ---------------------------------------------------------------------------
-// 6. parseCards / parseReviewCards
+// 6. parseCards
 // ---------------------------------------------------------------------------
 
 describe("parseCards", () => {
-  it("parses heading + caption with valid srs → card with metadata", () => {
+  it("splits content at line separator into front and back", () => {
     const blocks = [
-      makeBlock({ id: "h1", textStyle: "h1", markdown: "# What is X?" }),
-      makeBlock({ id: "cap", textStyle: "caption", markdown: "srs: REVIEW|0|5.5|4.2|1711822800|1711136400|10|2|8" }),
-      makeBlock({ id: "ans", textStyle: "body", markdown: "Answer text" }),
+      makeBlock({ id: "f1", textStyle: "body", markdown: "Front text" }),
+      makeBlock({ id: "hr", type: "line", markdown: "*****" }),
+      makeBlock({ id: "b1", textStyle: "body", markdown: "Back text" }),
     ]
-    const cards = parseCards([makeItem(blocks)])
+    const cards = parseCards("col-1", [makeItem(blocks)])
     expect(cards).toHaveLength(1)
-    expect(cards[0].question).toBe("What is X?")
-    expect(cards[0].metadataBlockId).toBe("cap")
+    expect(cards[0].frontBlocks).toHaveLength(1)
+    expect(cards[0].frontBlocks[0].markdown).toBe("Front text")
+    expect(cards[0].backBlocks).toHaveLength(1)
+    expect(cards[0].backBlocks[0].markdown).toBe("Back text")
+  })
+
+  it("item without line separator → all blocks are front, back is empty", () => {
+    const blocks = [
+      makeBlock({ id: "f1", textStyle: "body", markdown: "Only front" }),
+      makeBlock({ id: "f2", textStyle: "body", markdown: "More front" }),
+    ]
+    const cards = parseCards("col-1", [makeItem(blocks)])
+    expect(cards).toHaveLength(1)
+    expect(cards[0].frontBlocks).toHaveLength(2)
+    expect(cards[0].backBlocks).toHaveLength(0)
+  })
+
+  it("reads SRS metadata from item properties", () => {
+    const blocks = [makeBlock({ id: "f1", textStyle: "body", markdown: "Front" })]
+    const cards = parseCards("col-1", [makeItem(blocks, "item-1", "REVIEW|0|5.5|4.2|1711822800|1711136400|10|2|8")])
     expect(cards[0].metadata).not.toBeNull()
     expect(cards[0].metadata!.state).toBe("REVIEW")
   })
 
-  it("heading without caption → metadata=null, metadataBlockId=null", () => {
-    const blocks = [
-      makeBlock({ id: "h1", textStyle: "h2", markdown: "## Question?" }),
-      makeBlock({ id: "ans", textStyle: "body", markdown: "Answer" }),
-    ]
-    const cards = parseCards([makeItem(blocks)])
-    expect(cards).toHaveLength(1)
+  it("no srs property → metadata is null", () => {
+    const blocks = [makeBlock({ id: "f1", textStyle: "body", markdown: "Front" })]
+    const cards = parseCards("col-1", [makeItem(blocks)])
     expect(cards[0].metadata).toBeNull()
-    expect(cards[0].metadataBlockId).toBeNull()
   })
 
-  it("collects answer blocks until next heading", () => {
-    const blocks = [
-      makeBlock({ id: "h1", textStyle: "h1", markdown: "# Q1" }),
-      makeBlock({ id: "a1", textStyle: "body", markdown: "Answer line 1" }),
-      makeBlock({ id: "a2", textStyle: "body", markdown: "Answer line 2" }),
-      makeBlock({ id: "h2", textStyle: "h2", markdown: "## Q2" }),
-      makeBlock({ id: "a3", textStyle: "body", markdown: "Answer to Q2" }),
-    ]
-    const cards = parseReviewCards([makeItem(blocks)])
+  it("multiple items → multiple cards", () => {
+    const item1 = makeItem([makeBlock({ id: "f1", textStyle: "body", markdown: "Front 1" })], "item-1")
+    const item2 = makeItem([makeBlock({ id: "f2", textStyle: "body", markdown: "Front 2" })], "item-2")
+    const cards = parseCards("col-1", [item1, item2])
     expect(cards).toHaveLength(2)
-    expect(cards[0].answerBlocks).toHaveLength(2)
-    expect(cards[1].answerBlocks).toHaveLength(1)
+    expect(cards[0].itemId).toBe("item-1")
+    expect(cards[1].itemId).toBe("item-2")
   })
 
-  it("multiple headings in one item → multiple cards", () => {
+  it("sets documentName from item title", () => {
+    const item: CollectionItem = { id: "i1", title: "My Document", properties: {}, content: [] }
+    const cards = parseCards("col-1", [item])
+    expect(cards[0].documentName).toBe("My Document")
+  })
+
+  it("sets collectionId on cards", () => {
+    const cards = parseCards("col-42", [makeItem([])])
+    expect(cards[0].collectionId).toBe("col-42")
+  })
+
+  it("separator at start → empty front, all blocks as back", () => {
     const blocks = [
-      makeBlock({ id: "h1", textStyle: "h1", markdown: "# Q1" }),
-      makeBlock({ id: "h2", textStyle: "h3", markdown: "### Q2" }),
-      makeBlock({ id: "h3", textStyle: "h4", markdown: "#### Q3" }),
+      makeBlock({ id: "hr", type: "line", markdown: "*****" }),
+      makeBlock({ id: "b1", textStyle: "body", markdown: "Back" }),
     ]
-    const cards = parseCards([makeItem(blocks)])
-    expect(cards).toHaveLength(3)
-  })
-
-  it("non-heading blocks before first heading → ignored", () => {
-    const blocks = [
-      makeBlock({ id: "intro", textStyle: "body", markdown: "Some intro text" }),
-      makeBlock({ id: "h1", textStyle: "h1", markdown: "# Actual question" }),
-    ]
-    const cards = parseCards([makeItem(blocks)])
-    expect(cards).toHaveLength(1)
-    expect(cards[0].question).toBe("Actual question")
-  })
-
-  it("caption block without valid srs → treated as answer, not metadata", () => {
-    const blocks = [
-      makeBlock({ id: "h1", textStyle: "h1", markdown: "# Q" }),
-      makeBlock({ id: "cap", textStyle: "caption", markdown: "just a regular caption" }),
-      makeBlock({ id: "ans", textStyle: "body", markdown: "Answer" }),
-    ]
-    const cards = parseCards([makeItem(blocks)])
-    expect(cards).toHaveLength(1)
-    expect(cards[0].metadata).toBeNull()
-    expect(cards[0].metadataBlockId).toBeNull()
-  })
-
-  it("parseReviewCards includes itemId", () => {
-    const blocks = [makeBlock({ id: "h1", textStyle: "h1", markdown: "# Q" })]
-    const cards = parseReviewCards([makeItem(blocks, "my-item-42")])
-    expect(cards[0].itemId).toBe("my-item-42")
+    const cards = parseCards("col-1", [makeItem(blocks)])
+    expect(cards[0].frontBlocks).toHaveLength(0)
+    expect(cards[0].backBlocks).toHaveLength(1)
   })
 })
 
@@ -338,9 +320,9 @@ describe("countCards", () => {
   it("counts new, due, and total correctly", () => {
     const now = Math.floor(Date.now() / 1000)
     const cards: Card[] = [
-      { headingBlockId: "1", metadataBlockId: null, question: "Q1", metadata: null },
-      { headingBlockId: "2", metadataBlockId: "m2", question: "Q2", metadata: makeMetadata({ due: now - 100 }) },
-      { headingBlockId: "3", metadataBlockId: "m3", question: "Q3", metadata: makeMetadata({ due: now + 100000 }) },
+      { itemId: "1", frontBlocks: [], backBlocks: [], metadata: null, documentName: "D", collectionId: "c" },
+      { itemId: "2", frontBlocks: [], backBlocks: [], metadata: makeMetadata({ due: now - 100 }), documentName: "D", collectionId: "c" },
+      { itemId: "3", frontBlocks: [], backBlocks: [], metadata: makeMetadata({ due: now + 100000 }), documentName: "D", collectionId: "c" },
     ]
     const counts = countCards(cards)
     expect(counts.newCount).toBe(1)
@@ -356,14 +338,14 @@ describe("countCards", () => {
 describe("filterDueCards", () => {
   it("includes new cards and due cards, excludes future cards", () => {
     const now = Math.floor(Date.now() / 1000)
-    const cards: ReviewCard[] = [
-      { headingBlockId: "1", metadataBlockId: null, question: "New", metadata: null, answerBlocks: [], itemId: "i1", documentName: "Doc1" },
-      { headingBlockId: "2", metadataBlockId: "m2", question: "Due", metadata: makeMetadata({ due: now - 100 }), answerBlocks: [], itemId: "i2", documentName: "Doc2" },
-      { headingBlockId: "3", metadataBlockId: "m3", question: "Future", metadata: makeMetadata({ due: now + 100000 }), answerBlocks: [], itemId: "i3", documentName: "Doc3" },
+    const cards: Card[] = [
+      { itemId: "i1", frontBlocks: [], backBlocks: [], metadata: null, documentName: "Doc1", collectionId: "c" },
+      { itemId: "i2", frontBlocks: [], backBlocks: [], metadata: makeMetadata({ due: now - 100 }), documentName: "Doc2", collectionId: "c" },
+      { itemId: "i3", frontBlocks: [], backBlocks: [], metadata: makeMetadata({ due: now + 100000 }), documentName: "Doc3", collectionId: "c" },
     ]
     const due = filterDueCards(cards)
     expect(due).toHaveLength(2)
-    expect(due.map((c) => c.question)).toEqual(["New", "Due"])
+    expect(due.map((c) => c.documentName)).toEqual(["Doc1", "Doc2"])
   })
 })
 
@@ -402,34 +384,19 @@ describe("time-dependent behavior", () => {
   })
 
   it("countCards respects due timestamp relative to now", () => {
-    const dueAt = 1700000000
-    const cards: Card[] = [
-      { headingBlockId: "1", metadataBlockId: "m1", question: "Q", metadata: makeMetadata({ due: dueAt }) },
-    ]
-    // We can't inject "now" into countCards (it uses Date.now()), so we test
-    // with a card that is either clearly past or clearly future
-    const pastCard: Card[] = [
-      { headingBlockId: "1", metadataBlockId: "m1", question: "Q", metadata: makeMetadata({ due: 1000 }) },
-    ]
-    const futureCard: Card[] = [
-      { headingBlockId: "1", metadataBlockId: "m1", question: "Q", metadata: makeMetadata({ due: 4102444800 }) }, // 2100-01-01
-    ]
-    expect(countCards(pastCard).dueCount).toBe(1)
-    expect(countCards(futureCard).dueCount).toBe(0)
+    const makeCard = (due: number): Card => ({
+      itemId: "1", frontBlocks: [], backBlocks: [], metadata: makeMetadata({ due }), documentName: "D", collectionId: "c",
+    })
+    expect(countCards([makeCard(1000)]).dueCount).toBe(1)
+    expect(countCards([makeCard(4102444800)]).dueCount).toBe(0) // 2100-01-01
   })
 
   it("filterDueCards respects due timestamp", () => {
-    const makeReviewCard = (due: number): ReviewCard => ({
-      headingBlockId: "1",
-      metadataBlockId: "m1",
-      question: "Q",
-      metadata: makeMetadata({ due }),
-      answerBlocks: [],
-      itemId: "i1",
-      documentName: "Doc",
+    const makeCard = (due: number): Card => ({
+      itemId: "i1", frontBlocks: [], backBlocks: [], metadata: makeMetadata({ due }), documentName: "Doc", collectionId: "c",
     })
-    expect(filterDueCards([makeReviewCard(1000)])).toHaveLength(1) // far past → due
-    expect(filterDueCards([makeReviewCard(4102444800)])).toHaveLength(0) // far future → not due
+    expect(filterDueCards([makeCard(1000)])).toHaveLength(1) // far past → due
+    expect(filterDueCards([makeCard(4102444800)])).toHaveLength(0) // far future → not due
   })
 })
 
