@@ -34,6 +34,11 @@ const syntaxStyle = SyntaxStyle.fromStyles({
   "markup.link.url": { fg: RGBA.fromHex(colors.title), underline: true },
   "markup.link.label": { fg: RGBA.fromHex(colors.title) },
   "markup.strikethrough": { dim: true },
+  "markup.heading": { fg: RGBA.fromHex(colors.title), bold: true },
+  "markup.heading.1": { fg: RGBA.fromHex(colors.title), bold: true },
+  "markup.heading.2": { fg: RGBA.fromHex(colors.title), bold: true },
+  "markup.heading.3": { fg: RGBA.fromHex(colors.title), bold: true },
+  "markup.heading.4": { fg: RGBA.fromHex(colors.title), bold: true },
 })
 
 function renderBlock(block: { id: string; type: string; markdown: string }) {
