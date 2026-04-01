@@ -54,7 +54,7 @@ export function DashboardScreen({ client, onAddDeck, onDeleteDeck, onReview }: D
       onAddDeck()
       return
     }
-    if (key.sequence === "r" && decks.length > 0) {
+    if ((key.sequence === "r" || key.name === "return") && decks.length > 0) {
       const deck = decks[selectedIndex]
       if (deck) onReview(deck.id)
       return

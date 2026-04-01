@@ -182,21 +182,23 @@ export function ReviewScreen({ client, collectionId, onDone }: ReviewScreenProps
           </box>
         )}
 
-        <HotkeyBar hints={
-          phase === "front"
-            ? [{ key: "space", action: "reveal" }, { key: "esc", action: "quit" }]
-            : phase === "back"
-            ? [
-                { key: "1", action: "easy" },
-                { key: "2", action: "good" },
-                { key: "3", action: "hard" },
-                { key: "4", action: "again" },
-                { key: "esc", action: "quit" },
-              ]
-            : phase === "saving"
-            ? [{ key: "...", action: "saving" }]
-            : [{ key: "enter", action: "back" }]
-        } />
+        {phase !== "loading" && (
+          <HotkeyBar hints={
+            phase === "front"
+              ? [{ key: "space", action: "reveal" }, { key: "esc", action: "quit" }]
+              : phase === "back"
+              ? [
+                  { key: "1", action: "easy" },
+                  { key: "2", action: "good" },
+                  { key: "3", action: "hard" },
+                  { key: "4", action: "again" },
+                  { key: "esc", action: "quit" },
+                ]
+              : phase === "saving"
+              ? [{ key: "...", action: "saving" }]
+              : [{ key: "enter", action: "back" }]
+          } />
+        )}
       </box>
     </box>
   )
