@@ -8,8 +8,8 @@
     "test": "bun test"
   },
   "dependencies": {
-    "@opentui/core": "^0.1.95",
-    "@opentui/react": "^0.1.95",
+    "@opentui/core": "^0.1.97",
+    "@opentui/react": "^0.1.97",
     "react": "^19.2.4",
     "ts-fsrs": "^5.3.2"
   },
