@@ -13,6 +13,7 @@ type Phase = "loading" | "front" | "back" | "saving" | "complete" | "empty" | "e
 interface ReviewScreenProps {
   client: CraftClient
   collectionId: string
+  spaceId: string
   onDone: () => void
 }
 
@@ -54,7 +55,7 @@ function renderBlock(block: { id: string; type: string; markdown: string }) {
   )
 }
 
-export function ReviewScreen({ client, collectionId, onDone }: ReviewScreenProps) {
+export function ReviewScreen({ client, collectionId, spaceId, onDone }: ReviewScreenProps) {
   const [phase, setPhase] = useState<Phase>("loading")
   const [cards, setCards] = useState<Card[]>([])
   const [currentIndex, setCurrentIndex] = useState(0)
@@ -88,6 +89,11 @@ export function ReviewScreen({ client, collectionId, onDone }: ReviewScreenProps
       setCurrentIndex(next)
       setPhase("front")
     }
+  }
+
+  function handleOpen() {
+    if (!card || !spaceId) return
+    Bun.spawn(["open", `craftdocs://open?spaceId=${spaceId}&blockId=${card.itemId}`])
   }
 
   async function handleRate(rating: Rating) {
@@ -125,6 +131,7 @@ export function ReviewScreen({ client, collectionId, onDone }: ReviewScreenProps
     if (phase === "front") {
       if (key.name === "space") setPhase("back")
       if (key.sequence === "s") handleSkip()
+      if (key.sequence === "o") handleOpen()
       if (key.name === "escape") onDone()
       return
     }
@@ -134,6 +141,7 @@ export function ReviewScreen({ client, collectionId, onDone }: ReviewScreenProps
       else if (key.sequence === "3") handleRate(Rating.Hard)
       else if (key.sequence === "4") handleRate(Rating.Again)
       else if (key.sequence === "s") handleSkip()
+      else if (key.sequence === "o") handleOpen()
       else if (key.name === "escape") onDone()
       return
     }
@@ -197,7 +205,7 @@ export function ReviewScreen({ client, collectionId, onDone }: ReviewScreenProps
         {phase !== "loading" && (
           <HotkeyBar hints={
             phase === "front"
-              ? [{ key: "space", action: "reveal" }, { key: "s", action: "skip" }, { key: "esc", action: "quit" }]
+              ? [{ key: "space", action: "reveal" }, { key: "s", action: "skip" }, { key: "o", action: "open" }, { key: "esc", action: "quit" }]
               : phase === "back"
               ? [
                   { key: "1", action: "easy" },
@@ -205,6 +213,7 @@ export function ReviewScreen({ client, collectionId, onDone }: ReviewScreenProps
                   { key: "3", action: "hard" },
                   { key: "4", action: "again" },
                   { key: "s", action: "skip" },
+                  { key: "o", action: "open" },
                   { key: "esc", action: "quit" },
                 ]
               : phase === "saving"

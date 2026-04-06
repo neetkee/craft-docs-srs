@@ -12,32 +12,43 @@ describe("isConfigComplete", () => {
   })
 
   it("returns false when craftApiUrl is empty", () => {
-    const config: Config = { craftApiUrl: "", craftApiKey: "key", collectionIds: [] }
+    const config: Config = { craftApiUrl: "", craftApiKey: "key", spaceId: "s1", collectionIds: [] }
     expect(isConfigComplete(config)).toBe(false)
   })
 
   it("returns false when craftApiKey is empty", () => {
-    const config: Config = { craftApiUrl: "https://example.com", craftApiKey: "", collectionIds: [] }
+    const config: Config = { craftApiUrl: "https://example.com", craftApiKey: "", spaceId: "s1", collectionIds: [] }
     expect(isConfigComplete(config)).toBe(false)
   })
 
   it("returns false when craftApiUrl is whitespace only", () => {
-    const config: Config = { craftApiUrl: "   ", craftApiKey: "key", collectionIds: [] }
+    const config: Config = { craftApiUrl: "   ", craftApiKey: "key", spaceId: "s1", collectionIds: [] }
     expect(isConfigComplete(config)).toBe(false)
   })
 
   it("returns false when craftApiKey is whitespace only", () => {
-    const config: Config = { craftApiUrl: "https://example.com", craftApiKey: "  \t  ", collectionIds: [] }
+    const config: Config = { craftApiUrl: "https://example.com", craftApiKey: "  \t  ", spaceId: "s1", collectionIds: [] }
     expect(isConfigComplete(config)).toBe(false)
   })
 
-  it("returns true when both url and key are non-empty", () => {
-    const config: Config = { craftApiUrl: "https://example.com", craftApiKey: "my-key", collectionIds: [] }
+  it("returns false when spaceId is empty", () => {
+    const config: Config = { craftApiUrl: "https://example.com", craftApiKey: "key", spaceId: "", collectionIds: [] }
+    expect(isConfigComplete(config)).toBe(false)
+  })
+
+  it("returns false when spaceId is whitespace only", () => {
+    const config: Config = { craftApiUrl: "https://example.com", craftApiKey: "key", spaceId: "   ", collectionIds: [] }
+    expect(isConfigComplete(config)).toBe(false)
+  })
+
+  it("returns true when url, key, and spaceId are non-empty", () => {
+    const config: Config = { craftApiUrl: "https://example.com", craftApiKey: "my-key", spaceId: "s1", collectionIds: [] }
     expect(isConfigComplete(config)).toBe(true)
   })
 
   it("returns true regardless of collectionIds", () => {
-    const config: Config = { craftApiUrl: "https://example.com", craftApiKey: "key", collectionIds: ["c1", "c2"] }
+    const config: Config = { craftApiUrl: "https://example.com", craftApiKey: "key", spaceId: "s1", collectionIds: ["c1", "c2"] }
     expect(isConfigComplete(config)).toBe(true)
   })
 })
+

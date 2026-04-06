@@ -5,6 +5,7 @@ import { mkdirSync, readFileSync, existsSync } from "node:fs"
 export interface Config {
   craftApiUrl: string
   craftApiKey: string
+  spaceId: string
   collectionIds: string[]
 }
 
@@ -22,7 +23,7 @@ export function loadConfig(): Config | null {
 
 export function isConfigComplete(config: Config | null): boolean {
   if (!config) return false
-  return config.craftApiUrl.trim().length > 0 && config.craftApiKey.trim().length > 0
+  return config.craftApiUrl.trim().length > 0 && config.craftApiKey.trim().length > 0 && config.spaceId.trim().length > 0
 }
 
 export async function saveConfig(config: Config): Promise<void> {

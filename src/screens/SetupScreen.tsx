@@ -46,7 +46,7 @@ export function SetupScreen({ onComplete }: SetupScreenProps) {
 
     const result = await validateConnection(trimmedUrl, trimmedKey)
     if (result.ok) {
-      await saveConfig({ craftApiUrl: trimmedUrl, craftApiKey: trimmedKey, collectionIds: [] })
+      await saveConfig({ craftApiUrl: trimmedUrl, craftApiKey: trimmedKey, spaceId: result.data.space.id, collectionIds: [] })
       onComplete()
     } else {
       setError(result.error)

@@ -50,6 +50,7 @@ export function App() {
       <ReviewScreen
         client={client}
         collectionId={reviewCollectionId}
+        spaceId={config.spaceId}
         onDone={() => {
           setRefreshKey((k) => k + 1)
           setScreen("dashboard")
