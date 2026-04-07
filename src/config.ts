@@ -9,7 +9,15 @@ export interface Config {
   collectionIds: string[]
 }
 
-export const CONFIG_PATH = join(homedir(), ".config", "craft-docs-srs", "config.json")
+function getConfigDir(): string {
+  if (process.platform === "win32") {
+    const appData = process.env.APPDATA ?? join(homedir(), "AppData", "Roaming")
+    return join(appData, "craft-docs-srs")
+  }
+  return join(homedir(), ".config", "craft-docs-srs")
+}
+
+export const CONFIG_PATH = join(getConfigDir(), "config.json")
 
 export function loadConfig(): Config | null {
   try {
