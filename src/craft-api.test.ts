@@ -102,21 +102,54 @@ describe("createCraftClient.listCollections", () => {
 // ---------------------------------------------------------------------------
 
 describe("createCraftClient.fetchCollectionItems", () => {
+  const schema = { key: "c1", name: "Deck", contentPropDetails: { key: "title", name: "Title" }, properties: [] }
+
   it("returns items on success", async () => {
-    const items = [{ id: "i1", title: "Item 1", properties: {}, content: [] }]
-    mockFetch({ ok: true, json: () => Promise.resolve({ items }) })
+    const rawItems = [{ id: "i1", title: "Item 1", properties: {}, content: [] }]
+    fetchSpy = spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(schema) } as Response)
+      .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ items: rawItems }) } as Response)
 
     const client = createCraftClient(API_URL, API_KEY)
     const result = await client.fetchCollectionItems("c1")
 
-    expect(result).toEqual({ ok: true, data: items })
-    expect(fetchSpy).toHaveBeenCalledWith(`${API_URL}/collections/c1/items`, {
+    expect(result).toEqual({ ok: true, data: rawItems })
+    expect(fetchSpy).toHaveBeenNthCalledWith(1, `${API_URL}/collections/c1/schema?format=schema`, {
+      headers: { Authorization: `Bearer ${API_KEY}` },
+    })
+    expect(fetchSpy).toHaveBeenNthCalledWith(2, `${API_URL}/collections/c1/items`, {
       headers: { Authorization: `Bearer ${API_KEY}` },
     })
   })
 
-  it("returns error on HTTP failure", async () => {
-    mockFetch({ ok: false, status: 404 })
+  it("maps title from contentPropDetails key", async () => {
+    const customSchema = { key: "c1", name: "Deck", contentPropDetails: { key: "not_a_title", name: "Not a title" }, properties: [] }
+    const rawItems = [{ id: "i1", not_a_title: "Item 1", properties: {}, content: [] }]
+    fetchSpy = spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(customSchema) } as Response)
+      .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ items: rawItems }) } as Response)
+
+    const client = createCraftClient(API_URL, API_KEY)
+    const result = await client.fetchCollectionItems("c1")
+
+    expect(result.ok).toBe(true)
+    if (result.ok) expect(result.data[0].title).toBe("Item 1")
+  })
+
+  it("returns error when schema fetch fails", async () => {
+    mockFetch({ ok: false, status: 500 })
+
+    const client = createCraftClient(API_URL, API_KEY)
+    const result = await client.fetchCollectionItems("c1")
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error).toContain("Failed to fetch collection schema")
+  })
+
+  it("returns error when items fetch fails", async () => {
+    fetchSpy = spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(schema) } as Response)
+      .mockResolvedValueOnce({ ok: false, status: 404 } as Response)
 
     const client = createCraftClient(API_URL, API_KEY)
     const result = await client.fetchCollectionItems("c1")

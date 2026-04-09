@@ -33,6 +33,13 @@ export interface CollectionItem {
   content: ContentBlock[]
 }
 
+interface RawCollectionItem {
+  id: string
+  properties: Record<string, string>
+  content: ContentBlock[]
+  [key: string]: unknown
+}
+
 export async function validateConnection(apiUrl: string, apiKey: string): Promise<Result<ConnectionInfo>> {
   try {
     const res = await fetch(`${apiUrl}/connection`, {
@@ -90,12 +97,21 @@ export function createCraftClient(apiUrl: string, apiKey: string): CraftClient {
 
     async fetchCollectionItems(collectionId) {
       try {
+        const schemaRes = await fetch(`${apiUrl}/collections/${collectionId}/schema?format=schema`, { headers })
+        if (!schemaRes.ok) return { ok: false, error: "Failed to fetch collection schema" }
+        const schema = (await schemaRes.json()) as CollectionSchema
+        const titleKey = schema.contentPropDetails.key
+
         const res = await fetch(`${apiUrl}/collections/${collectionId}/items`, { headers })
-        if (res.ok) {
-          const json = (await res.json()) as { items: CollectionItem[] }
-          return { ok: true, data: json.items }
-        }
-        return { ok: false, error: "Failed to fetch collection items" }
+        if (!res.ok) return { ok: false, error: "Failed to fetch collection items" }
+        const json = (await res.json()) as { items: RawCollectionItem[] }
+        const items: CollectionItem[] = json.items.map((item) => ({
+          id: item.id,
+          title: (item[titleKey] as string) ?? "",
+          properties: item.properties,
+          content: item.content,
+        }))
+        return { ok: true, data: items }
       } catch {
         return { ok: false, error: "Network error — check your connection" }
       }
