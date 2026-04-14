@@ -17,12 +17,13 @@ function formatDate(date: Date): string {
 
 interface DashboardScreenProps {
   client: CraftClient
+  maxNewCardsPerDay: number
   onAddDeck: () => void
   onDeleteDeck: (collectionId: string) => void
   onReview: (collectionId: string) => void
 }
 
-export function DashboardScreen({ client, onAddDeck, onDeleteDeck, onReview }: DashboardScreenProps) {
+export function DashboardScreen({ client, maxNewCardsPerDay, onAddDeck, onDeleteDeck, onReview }: DashboardScreenProps) {
   const renderer = useRenderer()
   const [decks, setDecks] = useState<DeckInfo[]>([])
   const [loading, setLoading] = useState(true)
@@ -35,7 +36,7 @@ export function DashboardScreen({ client, onAddDeck, onDeleteDeck, onReview }: D
       setLoading(false)
       return
     }
-    loadDecks(client, config.collectionIds).then((result) => {
+    loadDecks(client, config.collectionIds, maxNewCardsPerDay).then((result) => {
       if (result.ok) {
         setDecks(result.data)
       } else {

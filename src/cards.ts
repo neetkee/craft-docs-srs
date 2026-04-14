@@ -70,26 +70,52 @@ export function parseCards(collectionId: string, items: CollectionItem[]): Card[
   return cards
 }
 
-export function countCards(cards: Card[]): { newCount: number; dueCount: number; totalCount: number } {
+function startOfDay(epochSecs: number): number {
+  const d = new Date(epochSecs * 1000)
+  d.setHours(0, 0, 0, 0)
+  return Math.floor(d.getTime() / 1000)
+}
+
+// Lapsed cards are excluded so they don't eat into the daily new-card budget
+function countIntroducedToday(cards: Card[], todayStart: number): number {
+  let count = 0
+  for (const card of cards) {
+    if (card.metadata !== null && card.metadata.lapses === 0 && card.metadata.lastReview >= todayStart) {
+      count++
+    }
+  }
+  return count
+}
+
+function remainingNewBudget(cards: Card[], maxNewCards: number, todayStart: number): number {
+  return Math.max(0, maxNewCards - countIntroducedToday(cards, todayStart))
+}
+
+export function countCards(cards: Card[], maxNewCards: number): { newCount: number; dueCount: number; totalCount: number } {
   const now = Math.floor(Date.now() / 1000)
-  let newCount = 0
+  const todayStart = startOfDay(now)
+  let totalNew = 0
   let dueCount = 0
   for (const card of cards) {
     if (card.metadata === null) {
-      newCount++
+      totalNew++
     } else if (card.metadata.due <= now) {
       dueCount++
     }
   }
+  const newCount = Math.min(totalNew, remainingNewBudget(cards, maxNewCards, todayStart))
   return { newCount, dueCount, totalCount: cards.length }
 }
 
-export function filterDueCards(cards: Card[]): Card[] {
+export function filterDueCards(cards: Card[], maxNewCards: number): Card[] {
   const now = Math.floor(Date.now() / 1000)
-  return cards.filter((c) => c.metadata === null || c.metadata.due <= now)
+  const todayStart = startOfDay(now)
+  const due = cards.filter((c) => c.metadata !== null && c.metadata.due <= now)
+  const newCards = cards.filter((c) => c.metadata === null).slice(0, remainingNewBudget(cards, maxNewCards, todayStart))
+  return [...due, ...newCards]
 }
 
-export async function loadDecks(client: CraftClient, collectionIds: string[]): Promise<Result<DeckInfo[]>> {
+export async function loadDecks(client: CraftClient, collectionIds: string[], maxNewCards: number): Promise<Result<DeckInfo[]>> {
   if (collectionIds.length === 0) return { ok: true, data: [] }
 
   const collectionsResult = await client.listCollections()
@@ -102,7 +128,7 @@ export async function loadDecks(client: CraftClient, collectionIds: string[]): P
       const itemsResult = await client.fetchCollectionItems(collection.id)
       if (!itemsResult.ok) return { ok: false as const, error: itemsResult.error }
       const cards = parseCards(collection.id, itemsResult.data)
-      const counts = countCards(cards)
+      const counts = countCards(cards, maxNewCards)
       return { ok: true as const, data: { id: collection.id, name: collection.name, ...counts } }
     }),
   )

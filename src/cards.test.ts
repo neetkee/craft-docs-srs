@@ -94,7 +94,7 @@ describe("parseCards edge cases", () => {
 describe("loadDecks", () => {
   it("returns empty array for empty collectionIds", async () => {
     const client = makeMockClient()
-    const result = await loadDecks(client, [])
+    const result = await loadDecks(client, [], 20)
     expect(result).toEqual({ ok: true, data: [] })
   })
 
@@ -102,7 +102,7 @@ describe("loadDecks", () => {
     const client = makeMockClient({
       listCollections: () => Promise.resolve({ ok: false as const, error: "auth failed" }),
     })
-    const result = await loadDecks(client, ["c1"])
+    const result = await loadDecks(client, ["c1"], 20)
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.error).toBe("auth failed")
   })
@@ -119,7 +119,7 @@ describe("loadDecks", () => {
         return Promise.resolve({ ok: true as const, data: [] })
       },
     })
-    const result = await loadDecks(client, ["c1", "c2"])
+    const result = await loadDecks(client, ["c1", "c2"], 20)
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.error).toBe("items fetch failed")
   })
@@ -153,7 +153,7 @@ describe("loadDecks", () => {
       },
     })
 
-    const result = await loadDecks(client, ["c1", "c2"])
+    const result = await loadDecks(client, ["c1", "c2"], 20)
     expect(result.ok).toBe(true)
     if (!result.ok) return
 
@@ -179,7 +179,7 @@ describe("loadDecks", () => {
       },
     })
 
-    await loadDecks(client, ["c1", "c3"])
+    await loadDecks(client, ["c1", "c3"], 20)
 
     expect(fetchedIds.sort()).toEqual(["c1", "c3"])
   })
@@ -192,7 +192,7 @@ describe("loadDecks", () => {
       listCollections: () => Promise.resolve({ ok: true as const, data: collections }),
     })
 
-    const result = await loadDecks(client, ["non-existent"])
+    const result = await loadDecks(client, ["non-existent"], 20)
     expect(result).toEqual({ ok: true, data: [] })
   })
 })

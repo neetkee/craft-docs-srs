@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { loadConfig, isConfigComplete, saveConfig } from "./config"
+import { loadConfig, isConfigComplete, saveConfig, getMaxNewCardsPerDay } from "./config"
 import { createCraftClient } from "./craft-api"
 import { SetupScreen } from "./screens/SetupScreen"
 import { DashboardScreen } from "./screens/DashboardScreen"
@@ -24,6 +24,7 @@ export function App() {
   }
 
   const client = createCraftClient(config.craftApiUrl, config.craftApiKey)
+  const maxNewCardsPerDay = getMaxNewCardsPerDay(config)
 
   if (screen === "addDeck") {
     return (
@@ -51,6 +52,7 @@ export function App() {
         client={client}
         collectionId={reviewCollectionId}
         spaceId={config.spaceId}
+        maxNewCardsPerDay={maxNewCardsPerDay}
         onDone={() => {
           setRefreshKey((k) => k + 1)
           setScreen("dashboard")
@@ -63,6 +65,7 @@ export function App() {
     <DashboardScreen
       key={refreshKey}
       client={client}
+      maxNewCardsPerDay={maxNewCardsPerDay}
       onAddDeck={() => setScreen("addDeck")}
       onDeleteDeck={async (collectionId) => {
         const current = loadConfig()

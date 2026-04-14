@@ -324,7 +324,7 @@ describe("countCards", () => {
       { itemId: "2", frontBlocks: [], backBlocks: [], metadata: makeMetadata({ due: now - 100 }), documentName: "D", collectionId: "c" },
       { itemId: "3", frontBlocks: [], backBlocks: [], metadata: makeMetadata({ due: now + 100000 }), documentName: "D", collectionId: "c" },
     ]
-    const counts = countCards(cards)
+    const counts = countCards(cards, 20)
     expect(counts.newCount).toBe(1)
     expect(counts.dueCount).toBe(1)
     expect(counts.totalCount).toBe(3)
@@ -343,9 +343,75 @@ describe("filterDueCards", () => {
       { itemId: "i2", frontBlocks: [], backBlocks: [], metadata: makeMetadata({ due: now - 100 }), documentName: "Doc2", collectionId: "c" },
       { itemId: "i3", frontBlocks: [], backBlocks: [], metadata: makeMetadata({ due: now + 100000 }), documentName: "Doc3", collectionId: "c" },
     ]
-    const due = filterDueCards(cards)
+    const due = filterDueCards(cards, 20)
     expect(due).toHaveLength(2)
-    expect(due.map((c) => c.documentName)).toEqual(["Doc1", "Doc2"])
+    expect(due.map((c) => c.documentName)).toEqual(["Doc2", "Doc1"])
+  })
+
+  it("caps new cards at maxNewCards limit", () => {
+    const cards: Card[] = [
+      { itemId: "i1", frontBlocks: [], backBlocks: [], metadata: null, documentName: "New1", collectionId: "c" },
+      { itemId: "i2", frontBlocks: [], backBlocks: [], metadata: null, documentName: "New2", collectionId: "c" },
+      { itemId: "i3", frontBlocks: [], backBlocks: [], metadata: null, documentName: "New3", collectionId: "c" },
+    ]
+    const due = filterDueCards(cards, 2)
+    expect(due).toHaveLength(2)
+    expect(due.map((c) => c.documentName)).toEqual(["New1", "New2"])
+  })
+
+  it("does not cap due cards, only new cards", () => {
+    const now = Math.floor(Date.now() / 1000)
+    const cards: Card[] = [
+      { itemId: "i1", frontBlocks: [], backBlocks: [], metadata: makeMetadata({ due: now - 300 }), documentName: "Due1", collectionId: "c" },
+      { itemId: "i2", frontBlocks: [], backBlocks: [], metadata: makeMetadata({ due: now - 200 }), documentName: "Due2", collectionId: "c" },
+      { itemId: "i3", frontBlocks: [], backBlocks: [], metadata: makeMetadata({ due: now - 100 }), documentName: "Due3", collectionId: "c" },
+      { itemId: "i4", frontBlocks: [], backBlocks: [], metadata: null, documentName: "New1", collectionId: "c" },
+      { itemId: "i5", frontBlocks: [], backBlocks: [], metadata: null, documentName: "New2", collectionId: "c" },
+    ]
+    const due = filterDueCards(cards, 1)
+    expect(due).toHaveLength(4) // all 3 due + 1 new
+    expect(due.map((c) => c.documentName)).toEqual(["Due1", "Due2", "Due3", "New1"])
+  })
+
+  it("returns due cards before new cards", () => {
+    const now = Math.floor(Date.now() / 1000)
+    const cards: Card[] = [
+      { itemId: "i1", frontBlocks: [], backBlocks: [], metadata: null, documentName: "New1", collectionId: "c" },
+      { itemId: "i2", frontBlocks: [], backBlocks: [], metadata: makeMetadata({ due: now - 100 }), documentName: "Due1", collectionId: "c" },
+    ]
+    const due = filterDueCards(cards, 20)
+    expect(due.map((c) => c.documentName)).toEqual(["Due1", "New1"])
+  })
+
+  it("subtracts cards introduced today from new card budget", () => {
+    const now = Math.floor(Date.now() / 1000)
+    const cards: Card[] = [
+      // 2 cards already introduced today (lapses=0, lastReview=today)
+      { itemId: "i1", frontBlocks: [], backBlocks: [], metadata: makeMetadata({ lapses: 0, lastReview: now - 60, due: now + 3600 }), documentName: "Done1", collectionId: "c" },
+      { itemId: "i2", frontBlocks: [], backBlocks: [], metadata: makeMetadata({ lapses: 0, lastReview: now - 30, due: now + 7200 }), documentName: "Done2", collectionId: "c" },
+      // 3 still-new cards
+      { itemId: "i3", frontBlocks: [], backBlocks: [], metadata: null, documentName: "New1", collectionId: "c" },
+      { itemId: "i4", frontBlocks: [], backBlocks: [], metadata: null, documentName: "New2", collectionId: "c" },
+      { itemId: "i5", frontBlocks: [], backBlocks: [], metadata: null, documentName: "New3", collectionId: "c" },
+    ]
+    // limit=3, but 2 already introduced today → only 1 new card allowed
+    const due = filterDueCards(cards, 3)
+    expect(due).toHaveLength(1)
+    expect(due[0]!.documentName).toBe("New1")
+  })
+
+  it("does not count lapsed cards as introduced today", () => {
+    const now = Math.floor(Date.now() / 1000)
+    const cards: Card[] = [
+      // Lapsed card reviewed today — should NOT count against new card budget
+      { itemId: "i1", frontBlocks: [], backBlocks: [], metadata: makeMetadata({ lapses: 1, lastReview: now - 60, due: now + 3600 }), documentName: "Lapsed", collectionId: "c" },
+      // New cards
+      { itemId: "i2", frontBlocks: [], backBlocks: [], metadata: null, documentName: "New1", collectionId: "c" },
+      { itemId: "i3", frontBlocks: [], backBlocks: [], metadata: null, documentName: "New2", collectionId: "c" },
+    ]
+    const due = filterDueCards(cards, 2)
+    expect(due).toHaveLength(2)
+    expect(due.map((c) => c.documentName)).toEqual(["New1", "New2"])
   })
 })
 
@@ -387,16 +453,16 @@ describe("time-dependent behavior", () => {
     const makeCard = (due: number): Card => ({
       itemId: "1", frontBlocks: [], backBlocks: [], metadata: makeMetadata({ due }), documentName: "D", collectionId: "c",
     })
-    expect(countCards([makeCard(1000)]).dueCount).toBe(1)
-    expect(countCards([makeCard(4102444800)]).dueCount).toBe(0) // 2100-01-01
+    expect(countCards([makeCard(1000)], 20).dueCount).toBe(1)
+    expect(countCards([makeCard(4102444800)], 20).dueCount).toBe(0) // 2100-01-01
   })
 
   it("filterDueCards respects due timestamp", () => {
     const makeCard = (due: number): Card => ({
       itemId: "i1", frontBlocks: [], backBlocks: [], metadata: makeMetadata({ due }), documentName: "Doc", collectionId: "c",
     })
-    expect(filterDueCards([makeCard(1000)])).toHaveLength(1) // far past → due
-    expect(filterDueCards([makeCard(4102444800)])).toHaveLength(0) // far future → not due
+    expect(filterDueCards([makeCard(1000)], 20)).toHaveLength(1) // far past → due
+    expect(filterDueCards([makeCard(4102444800)], 20)).toHaveLength(0) // far future → not due
   })
 })
 

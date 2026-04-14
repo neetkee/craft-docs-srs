@@ -14,6 +14,7 @@ interface ReviewScreenProps {
   client: CraftClient
   collectionId: string
   spaceId: string
+  maxNewCardsPerDay: number
   onDone: () => void
 }
 
@@ -55,7 +56,7 @@ function renderBlock(block: { id: string; type: string; markdown: string }) {
   )
 }
 
-export function ReviewScreen({ client, collectionId, spaceId, onDone }: ReviewScreenProps) {
+export function ReviewScreen({ client, collectionId, spaceId, maxNewCardsPerDay, onDone }: ReviewScreenProps) {
   const [phase, setPhase] = useState<Phase>("loading")
   const [cards, setCards] = useState<Card[]>([])
   const [currentIndex, setCurrentIndex] = useState(0)
@@ -69,7 +70,7 @@ export function ReviewScreen({ client, collectionId, spaceId, onDone }: ReviewSc
         setPhase("error")
         return
       }
-      const due = filterDueCards(parseCards(collectionId, result.data))
+      const due = filterDueCards(parseCards(collectionId, result.data), maxNewCardsPerDay)
       if (due.length === 0) {
         setPhase("empty")
         return

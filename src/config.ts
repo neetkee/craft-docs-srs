@@ -7,6 +7,13 @@ export interface Config {
   craftApiKey: string
   spaceId: string
   collectionIds: string[]
+  maxNewCardsPerDay?: number
+}
+
+export const DEFAULT_MAX_NEW_CARDS_PER_DAY = 20
+
+export function getMaxNewCardsPerDay(config: Config): number {
+  return config.maxNewCardsPerDay ?? DEFAULT_MAX_NEW_CARDS_PER_DAY
 }
 
 function getConfigDir(): string {
