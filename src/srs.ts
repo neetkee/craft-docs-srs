@@ -3,7 +3,7 @@ import type { SrsMetadata, SrsState } from "./cards"
 
 export { Rating }
 
-const f = fsrs()
+const f = fsrs({ maximum_interval: 365 })
 
 const STATE_MAP: Record<string, State> = {
   NEW: State.New,
