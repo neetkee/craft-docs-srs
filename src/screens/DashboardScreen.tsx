@@ -15,6 +15,9 @@ function formatDate(date: Date): string {
   })
 }
 
+const COUNT_COLUMN_WIDTH = 8
+const TOTAL_COLUMN_WIDTH = 9
+
 interface DashboardScreenProps {
   client: CraftClient
   maxNewCardsPerDay: number
@@ -116,32 +119,37 @@ export function DashboardScreen({ client, maxNewCardsPerDay, onAddDeck, onDelete
                   <box
                     key={deck.id}
                     flexDirection="row"
-                    justifyContent="space-between"
                     backgroundColor={selected ? colors.surface : undefined}
                     paddingX={1}
                   >
-                    <text>
+                    <text flexGrow={1}>
                       <span fg={colors.lavender}>{selected ? "▸ " : "  "}</span>
                       {selected
                         ? <strong><span fg={colors.text}>{deck.name}</span></strong>
                         : <span fg={colors.sub}>{deck.name}</span>
                       }
                     </text>
-                    <text>
-                      {deck.newCount > 0 && (
-                        <>
-                          <span fg={colors.title}>{deck.newCount} new</span>
-                          <span fg={colors.dim}> · </span>
-                        </>
-                      )}
-                      {deck.dueCount > 0 && (
-                        <>
-                          <span fg={colors.warn}>{deck.dueCount} due</span>
-                          <span fg={colors.dim}> · </span>
-                        </>
-                      )}
-                      <span fg={colors.dim}>{deck.totalCount} total</span>
-                    </text>
+                    <box flexDirection="row">
+                      <text width={COUNT_COLUMN_WIDTH}>
+                        {deck.newCount > 0 && (
+                          <>
+                            <span fg={colors.title}>{deck.newCount} new</span>
+                            <span fg={colors.dim}> · </span>
+                          </>
+                        )}
+                      </text>
+                      <text width={COUNT_COLUMN_WIDTH}>
+                        {deck.dueCount > 0 && (
+                          <>
+                            <span fg={colors.warn}>{deck.dueCount} due</span>
+                            <span fg={colors.dim}> · </span>
+                          </>
+                        )}
+                      </text>
+                      <text width={TOTAL_COLUMN_WIDTH} fg={colors.dim}>
+                        {deck.totalCount} total
+                      </text>
+                    </box>
                   </box>
                 )
               })}
